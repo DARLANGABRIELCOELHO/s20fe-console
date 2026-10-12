@@ -1,0 +1,23 @@
+# Dados do aparelho: efs/sec_efs/persist têm IMEI e dados de rádio. NUNCA publicar.
+backup/
+
+# Binários de terceiros e arquivos grandes (firmware Samsung, LineageOS, APKs, ferramentas)
+firmware/
+build/
+apps/
+samloader/
+scrcpy/
+odin/
+source/
+*.img
+*.zip
+*.tar
+*.tar.md5
+*.tar.gz
+*.apk
+*.ext4
+*.exe
+
+# Mantém os checksums do LineageOS (servem para conferir os downloads)
+!lineage/SHA256SUMS
+!lineage/magisk/SHA256SUMS
