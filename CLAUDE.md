@@ -118,7 +118,7 @@ Procedimento conferido na fonte da wiki (github.com/LineageOS/lineage_wiki, `_da
 ### Fase 2: root e desempenho
 - Magisk no boot do LineageOS.
 - Conferir se o DTB continua embutido no boot (`magiskboot unpack`). Se sim, testar o **KonaBess** (github.com/libxzr/KonaBess): GPU **625 MHz** com a mesma tensão do 587, testar estabilidade e depois **670 MHz** (frequência do 865+). Não passar de 670 sem motivo.
-- Kernel próprio a partir do **kernel do LineageOS para sm8250** (GitHub, org LineageOS), compilado no WSL (Ubuntu, dentro de `~`, nunca em `/mnt/c`). Extras: lz4 no zram (`CONFIG_CRYPTO_LZ4`), níveis extras de GPU no device tree.
+- Kernel próprio a partir do **kernel do LineageOS para sm8250** (GitHub, org LineageOS), compilado no Linux instalado no HD (ver "PC de desenvolvimento"), dentro de `~` (ext4), nunca numa partição NTFS. Extras: lz4 no zram (`CONFIG_CRYPTO_LZ4`), níveis extras de GPU no device tree.
 - Limite de carga da bateria (o aparelho vai ficar sempre na tomada): 60–80%.
 - Teste de estabilidade: 20–30 min de 3DMark Wild Life Stress ou um jogo pesado de PS2/GameCube, monitorando a temperatura.
 
@@ -141,3 +141,10 @@ O ROCKNIX (estilo Batocera) já roda no SD865 (Retroid Pocket 5). Existe Linux m
 - Tampa traseira removida. Dissipador + cooler de CPU direto na blindagem metálica, com thermal pad de 1–1,5 mm. Ventoinha 5 V alimentada pelo hub, ou 12 V com fonte separada. Sem Peltier (condensação).
 - Case com entrada e saída de ar, acesso à USB-C e ao botão power.
 - Controles por Bluetooth.
+
+## PC de desenvolvimento (levantado em 2026-10-11)
+- Windows 11 Pro, boot **UEFI**. RAM: **8 GB** (depois de retirar o pente defeituoso).
+- Disco 1: SSD NVMe 256 GB (GPT) → Windows `C:` (131 GB livres) + partição EFI do Windows.
+- Disco 0: HD Toshiba 1 TB (**MBR**) → `D:` NTFS, praticamente vazio (só pastas do app Xbox: `WindowsApps`, `.GamingRoot`).
+- WSL abandonado: a tentativa de rodar Linux no Windows quebrou o Windows. Plano: **Linux nativo em dual boot numa partição do HD** (D:).
+- 8 GB de RAM bastam para compilar o **kernel**. O LineageOS inteiro (Fase 4) pede 16–32 GB: com 8 GB, só com muito swap e muito lento → rever antes da Fase 4.
