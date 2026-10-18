@@ -21,3 +21,6 @@ source/
 # Mantém os checksums do LineageOS (servem para conferir os downloads)
 !lineage/SHA256SUMS
 !lineage/magisk/SHA256SUMS
+
+# Cache do Python
+__pycache__/

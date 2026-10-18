@@ -1,0 +1,1 @@
+Fonte: https://gitlab.com/es-de/emulationstation-de (resources/systems/android/), commit a529a9d38c0af09b6fd7e38d10c8076cb0a21050 2026-10-10T12:19:16.000+02:00

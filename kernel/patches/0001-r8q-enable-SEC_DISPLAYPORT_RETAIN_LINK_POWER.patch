@@ -1,0 +1,23 @@
+From bce87ea2f46dd9dd7ee391188c1b7ba92ca479b3 Mon Sep 17 00:00:00 2001
+From: s20fe <97315060+DARLANGABRIELCOELHO@users.noreply.github.com>
+Date: Mon, 12 Oct 2026 10:26:12 -0500
+Subject: [PATCH 1/2] r8q: enable SEC_DISPLAYPORT_RETAIN_LINK_POWER
+
+---
+ arch/arm64/configs/vendor/samsung/r8q.config | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/arch/arm64/configs/vendor/samsung/r8q.config b/arch/arm64/configs/vendor/samsung/r8q.config
+index 788e4a8ba..fa9495f03 100644
+--- a/arch/arm64/configs/vendor/samsung/r8q.config
++++ b/arch/arm64/configs/vendor/samsung/r8q.config
+@@ -70,3 +70,6 @@ CONFIG_SND_SOC_WM_ADSP=y
+ CONFIG_TRANSPARENT_HUGEPAGE_ALWAYS=y
+ # CONFIG_TRANSPARENT_HUGEPAGE_MADVISE is not set
+ CONFIG_XARRAY_MULTI=y
++
++# s20fe: keep the DP link up on source-initiated unprepare (same as gts7*)
++CONFIG_SEC_DISPLAYPORT_RETAIN_LINK_POWER=y
+-- 
+2.43.0
+
