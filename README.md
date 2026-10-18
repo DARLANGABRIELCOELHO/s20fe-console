@@ -10,12 +10,12 @@ O diário técnico completo (logs, hipóteses descartadas, procedimentos passo a
 
 | Fase | O que é | Situação |
 |---|---|---|
-| 1 | LineageOS oficial instalado e hardware validado | **Quase concluída**: falta testar áudio pela TV e temperatura jogando |
-| 2 | Root, kernel próprio e desempenho | **Quase concluída**: falta confirmar o limite de carga e decidir 625 ou 670 MHz como padrão |
-| 3 | Camada de console (frontend, emuladores, controles) | **Começando**: DroidDeck instalado; frontend ainda não escolhido |
+| 1 | LineageOS oficial instalado e hardware validado | **Concluída** |
+| 2 | Root, kernel próprio e desempenho | **Concluída** |
+| 3 | Camada de console (frontend, emuladores, controles) | **Em andamento**: Pegasus + tema próprio + NetherSX2/PPSSPP/RetroArch/Eden + assistente de desempenho |
 | 4 | ROM própria "plug and play" | Não iniciada |
 
-**Estado do aparelho agora:** LineageOS 23.2 nightly 20261010 (Android 16), kernel próprio (`s20fe-gpu-oc`) + Magisk 30.7, GPU até 670 MHz (padrão no boot: 625), zram com lz4, limite de carga em 80%, saída de vídeo para a TV funcionando.
+**Estado do aparelho agora:** LineageOS 23.2 nightly 20261010 (Android 16), kernel próprio (`s20fe-gpu-oc`) + Magisk 30.7, GPU até 670 MHz (padrão no boot: 625), zram com lz4, limite de carga em 80%, saída de vídeo para a TV funcionando. Pegasus como tela inicial; PS2 via NetherSX2, PSP via PPSSPP, retro via RetroArch, Switch via Eden.
 
 ## O que já foi feito
 
@@ -59,15 +59,12 @@ No caminho foram testados e descartados: desligar o HDCP, forçar criptografia, 
 
 ## Próximos passos
 
-1. **Fechar a Fase 1**: testar o áudio pela TV e medir a temperatura num jogo real.
-2. **Fechar a Fase 2**:
-   - confirmar que a carga pausa em 80%;
-   - decidir o padrão da GPU: 670 MHz quando o cooler estiver montado, 625 MHz sem ele;
-   - montar o resfriamento (dissipador + cooler, ver "Hardware do console" no CLAUDE.md) e repetir o teste de estresse.
+1. ~~**Fechar a Fase 1**~~: ✅ concluída (2026-10-18).
+2. ~~**Fechar a Fase 2**~~: ✅ concluída (2026-10-18).
 3. **Fase 3, camada de console**:
-   - escolher o frontend (**ES-DE** ou **Daijisho**) e deixá-lo como tela inicial;
-   - instalar os emuladores (RetroArch, PPSSPP, DuckStation, Dolphin, NetherSX2) com driver Turnip onde houver suporte;
+   - instalar os emuladores que faltam (Dolphin, DuckStation) com driver Turnip onde houver suporte;
    - testar os ports nativos e o DroidDeck com jogos reais;
+   - baixar vídeos de preview para o tema;
    - mapear controles e atalhos.
 4. **Fase 4, ROM própria**: compilar o LineageOS com o kernel, os scripts e os apps já incluídos, e gerar um pacote de instalação com guia simples. **Bloqueio atual:** o PC tem 8 GB de RAM e HD mecânico; compilar o LineageOS inteiro pede 16–32 GB de RAM e cerca de 300 GB, de preferência em SSD.
 
@@ -78,8 +75,11 @@ No caminho foram testados e descartados: desligar o HDCP, forçar criptografia, 
 - [`kernel/build-kernel.sh`](kernel/build-kernel.sh): compila o kernel como o build oficial do LineageOS.
 - [`kernel/mkboot.sh`](kernel/mkboot.sh): monta o `boot.img` com o kernel novo + ramdisk do Magisk. Os caminhos são do PC de desenvolvimento; ajuste antes de usar.
 - [`scripts/`](scripts/): scripts de boot do Magisk (`/data/adb/service.d/`):
-  - `zram-lz4.sh` troca o zram para lz4;
-  - `gpu-max.sh` define o limite da GPU no boot.
+  - `zram-lz4.sh`: zram 4 GB com lz4;
+  - `gpu-max.sh`: define o limite da GPU no boot (625 MHz);
+  - `slim-services.sh`: encerra serviços de hardware sem uso (câmera, biometria, neural networks, NFC);
+  - `controller-hotkeys.sh`: atalhos universais no controle e auto-reconexão no Pegasus;
+  - `perfd.sh`: assistente de desempenho e telemetria para emulação.
 - [`tools/gen-pegasus.py`](tools/gen-pegasus.py): gera os menus do [Pegasus](https://pegasus-frontend.org) a partir das listas de sistemas e emuladores do [ES-DE](https://es-de.org) (licença MIT, cópia em [`tools/esde/`](tools/esde/)), mostrando só os sistemas com emulador instalado e jogos.
 - [`theme/s20fe-console/`](theme/s20fe-console/): tema do Pegasus para TV e controle, mistura de Batocera (faixa de sistemas) com PS5 (fileira de capas e fundo com a tela do jogo).
 - [`tools/scrape.sh`](tools/scrape.sh): busca capas, vídeos e descrições com o [Skyscraper](https://github.com/Gemba/skyscraper) (ScreenScraper) identificando os jogos pelo nome, sem copiá-los para o PC.

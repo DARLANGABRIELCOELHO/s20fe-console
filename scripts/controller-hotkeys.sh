@@ -2,6 +2,9 @@
 # s20fe: atalhos de saída iguais para qualquer controle (roda como root pelo Magisk, service.d).
 #   Select + Start             -> volta ao menu (Home = Pegasus); o jogo fica pausado em segundo plano
 #   LB + RB + Select + Start   -> fecha o app em primeiro plano e volta ao menu
+# Antes de sair, salva o estado do jogo do jeito de cada emulador (PPSSPP: tecla F2 mapeada para
+# "Save State"; RetroArch: sai pelo Esc, que grava o estado automático; ARMSX2: autosave a cada
+# 1 min + ao fechar, configurado nas preferências dele). Ao abrir, cada um carrega o último estado.
 # Também reinicia o Pegasus quando um controle novo conecta: o Qt Gamepad do Pegasus só enxerga
 # os controles que existiam quando ele abriu (sem isso, só os direcionais funcionam).
 # Funciona com qualquer controle porque lê, para cada controle conectado, o mesmo arquivo de mapa
@@ -15,16 +18,34 @@ MAP=/data/local/tmp/s20fe-hotkeys.map
 
 log() { echo "$(date '+%F %T') $*" >> $LOG; }
 
+top_pkg() { dumpsys activity activities | grep -m1 topResumedActivity | sed -E 's/.* u0 ([^/]+)\/.*/\1/'; }
+
+# salva o estado antes de sair; devolve 0 se o emulador já saiu sozinho
+save_state() {
+    case "$1" in
+    org.ppsspp.ppsspp)
+        input keyevent KEYCODE_F2; sleep 2; log "estado salvo (PPSSPP F2)"; return 1 ;;
+    com.retroarch)
+        input keyevent KEYCODE_ESCAPE        # sai do jeito normal: grava o estado automático
+        i=0; while pidof com.retroarch >/dev/null && [ $i -lt 10 ]; do sleep 0.5; i=$((i+1)); done
+        if pidof com.retroarch >/dev/null; then log "RetroArch não saiu pelo Esc"; return 1; fi
+        log "estado salvo (RetroArch saiu pelo Esc)"; return 0 ;;
+    esac
+    return 1
+}
+
 action() {
     case "$1" in
     home)
+        pkg=$(top_pkg)
+        save_state "$pkg"
         input keyevent KEYCODE_HOME
-        log "home" ;;
+        log "home ($pkg)" ;;
     close)
-        pkg=$(dumpsys activity activities | grep -m1 topResumedActivity | sed -E 's/.* u0 ([^/]+)\/.*/\1/')
+        pkg=$(top_pkg)
         case "$pkg" in
         ""|"$HOME_PKG"|com.android.systemui|com.android.launcher3) log "close ignorado ($pkg)" ;;
-        *) am force-stop "$pkg"; log "close $pkg" ;;
+        *) save_state "$pkg" || am force-stop "$pkg"; log "close $pkg" ;;
         esac
         input keyevent KEYCODE_HOME ;;
     restart-home)

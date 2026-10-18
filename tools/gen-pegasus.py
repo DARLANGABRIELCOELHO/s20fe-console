@@ -28,7 +28,7 @@ PEGASUS_DIR = f"{INTERNAL}/pegasus-frontend"
 EXTERNALDATA = INTERNAL
 INTERNALDATA = "/data/data"
 # Preferências do console (sobrescritas por --emu)
-DEFAULT_PREFS = {"ps2": "ARMSX2", "psp": "PPSSPP (Standalone)"}
+DEFAULT_PREFS = {"ps2": "NETHERSX2", "psp": "PPSSPP (Standalone)"}
 
 # Tipos de extra do ES-DE -> opção do am
 EXTRA_TYPES = {
