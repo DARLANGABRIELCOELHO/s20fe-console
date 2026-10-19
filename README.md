@@ -94,6 +94,7 @@ Para preparação de mídias, organização de ROMs e otimização gráfica:
   - `slim-services.sh`: encerra serviços de hardware sem uso (câmera, leitor de digital, neural networks, elemento seguro de pagamento);
   - `controller-hotkeys.sh`: atalhos universais no controle — Select+Start fecha o jogo salvando o estado, L1+R1+Select+Start abre o menu do emulador, botão PS/Home desliga e liga o console (qualquer botão também liga) — e auto-reconexão no Pegasus;
   - `tv-mode.sh`: ao conectar a TV, ajusta a proporção da tela para a da TV, para a imagem espelhada ocupar a TV inteira;
+  - `perfis.sh`: perfis de jogador — a tela "Quem vai jogar?" do tema (Y no menu, e sempre ao abrir o Pegasus) escolhe o perfil, e o serviço troca as pastas de saves dos emuladores renomeando-as (nada é copiado nem apagado);
   - `perfd.sh`: assistente de desempenho e telemetria para emulação (ajustes de CPU/GPU na hora e, no PS2, ajustes por jogo no `gamesettings/<CRC>.ini` do NetherSX2, desfeitos sozinhos se piorarem).
 - [`tools/gen-pegasus.py`](tools/gen-pegasus.py): gera os menus do [Pegasus](https://pegasus-frontend.org) a partir das listas de sistemas e emuladores do [ES-DE](https://es-de.org) (licença MIT, cópia em [`tools/esde/`](tools/esde/)), mostrando só os sistemas com emulador instalado e jogos.
 - [`tools/launch-ps2-test.sh`](tools/launch-ps2-test.sh): testa pelo adb o lançamento de um jogo de PS2 no NetherSX2 com a mesma URI SAF que o gerador usa (`tools/launch-ps2-test.sh "Black.iso" --logcat`).

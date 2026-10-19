@@ -2,8 +2,9 @@
 # s20fe: atalhos iguais para qualquer controle (roda como root pelo Magisk, service.d).
 #   Select + Start                    -> fecha o jogo atual (salvando o estado) e volta ao Pegasus
 #   L1 + R1 (segurados) + Select+Start -> abre o menu/configurações do emulador (o jogo continua)
-#   Botão PS / Home / Guide           -> "desliga" (apaga a tela, console em espera) e liga de novo;
-#                                        com a tela apagada, qualquer botão do controle também liga
+#   Botão PS / Home / Guide           -> "desliga" (fecha o jogo salvando, apaga a tela) e liga de
+#                                        novo; com a tela apagada, qualquer botão também liga. Ao
+#                                        ligar, o perfis.sh mostra a escolha de perfil
 # Antes de fechar, salva o estado do jogo do jeito de cada emulador (PPSSPP: tecla F2 mapeada para
 # "Save State"; RetroArch: sai pelo Esc, que grava o estado automático). Ao abrir, cada um carrega
 # o último estado. Dolphin, Eden e outros: fechados direto (os jogos salvam no cartão de memória).
@@ -31,6 +32,16 @@ MAP=/data/local/tmp/s20fe-hotkeys.map
 UI=/data/local/tmp/s20fe-hotkeys-ui.xml
 
 log() { echo "$(date '+%F %T') $*" >> $LOG; }
+
+# Com o Pegasus fechado: a próxima abertura dele pula a escolha de perfil (o tema lê "pularPerfil"
+# no api.memory). Usado quando o Pegasus é reaberto por baixo dos panos.
+PEGASUS_MEM=/data/media/0/Android/data/$HOME_PKG/files/pegasus-frontend/theme_settings/s20fe-console.json
+pegasus_skip_picker() {
+    [ -f $PEGASUS_MEM ] || return
+    /data/adb/s20fe/bin/jq -c '.pularPerfil = true' $PEGASUS_MEM > $UI.mem &&
+        cat $UI.mem > $PEGASUS_MEM          # cat: mantém dono e contexto do arquivo
+    rm -f $UI.mem
+}
 
 top_pkg() { dumpsys activity activities | grep -m1 topResumedActivity | sed -E 's/.* u0 ([^/]+)\/.*/\1/'; }
 
@@ -107,7 +118,7 @@ save_state() {
     case "$1" in
     "$NETHER_PKG")
         nether_exit; r=$?
-        [ $r = 2 ] && am force-stop $HOME_PKG    # o Home reabre o Pegasus lendo o metadata novo
+        [ $r = 2 ] && { am force-stop $HOME_PKG; pegasus_skip_picker; }   # o Home reabre o Pegasus lendo o metadata novo
         [ $r = 1 ] && return 1
         return 0 ;;
     org.ppsspp.ppsspp)
@@ -145,6 +156,14 @@ action() {
         elif [ "${ago:-999999}" -lt 2500 ]; then
             wm dismiss-keyguard; log "botão Home ignorado: a tela acabou de acordar"
         else
+            # desligar = fechar o jogo salvando (como Select+Start) e apagar a tela; ao ligar, o
+            # perfis.sh vê o aviso e reabre o Pegasus na escolha de perfil
+            pkg=$(top_pkg)
+            case "$pkg" in
+            ""|"$HOME_PKG"|com.android.systemui|com.android.launcher3) ;;
+            *) save_state "$pkg" || am force-stop "$pkg"; log "close $pkg (desligando)" ;;
+            esac
+            touch /data/local/tmp/s20fe-desligado
             input keyevent KEYCODE_SLEEP; log "desligado (espera) pelo botão Home do controle"
         fi ;;
     nether-exit)    # usado pelo perfd (calamidade): sai salvando, sem voltar ao Home
@@ -152,6 +171,7 @@ action() {
     restart-home)
         top=$(dumpsys activity activities | grep -m1 topResumedActivity)
         am force-stop $HOME_PKG
+        pegasus_skip_picker
         case "$top" in
         *" $HOME_PKG/"*) sleep 1; monkey -p $HOME_PKG -c android.intent.category.LAUNCHER 1 >/dev/null 2>&1
                          log "Pegasus reaberto (controle novo)" ;;
