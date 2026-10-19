@@ -24,12 +24,13 @@
 #       4) prioridade máxima (nice -10) para os threads da emulação
 #       5) fecha apps em segundo plano
 #     Com a velocidade ≥ 90% por 5 s, tudo volta ao normal (não vale esquentar sem ganho).
-#   - Na próxima abertura do jogo (PS2/NetherSX2; 2 de uma vez se a sessão ficou < 75%):
-#     configurações do jogo em gamesettings/<CRC>.ini, escolhidas pelo gargalo medido; se a
-#     velocidade média piorar, desfaz sozinho e marca o ajuste como ruim para aquele jogo.
+#   - Na próxima abertura do jogo (PS2/NetherSX2): UM ajuste de configuração por vez, no
+#     gamesettings/<CRC>.ini, escolhido pelo gargalo medido; se a velocidade média piorar, desfaz
+#     sozinho e marca o ajuste como ruim para aquele jogo.
 #   - CALAMIDADE (< 65% por 3 s, só PS2, uma vez por sessão): sai pelo menu do NetherSX2 (grava o
-#     .resume.p2s, via controller-hotkeys.sh), aplica 3 ajustes de uma vez e reabre o jogo com o
-#     mesmo comando do Pegasus, que carrega o estado (perda de ~1 s de jogo).
+#     .resume.p2s, via controller-hotkeys.sh), avalia o ajuste anterior, aplica UM ajuste e reabre
+#     o jogo com o mesmo comando do Pegasus, que carrega o estado (perda de ~1 s de jogo). Se
+#     continuar lento, a sessão reaberta pode ter outra calamidade, com o ajuste seguinte.
 #   - Ao abrir um jogo: fecha os apps em segundo plano que podem ser fechados (am kill-all).
 #   - NetherSX2 aberto em segundo plano sem jogo rodando (saiu pelo menu dele): fecha o processo,
 #     porque ele não abre um 2º jogo no mesmo processo (tela preta).
@@ -44,8 +45,8 @@ EMUS="$NETHER org.ppsspp.ppsspp com.retroarch org.dolphinemu.dolphinemu dev.lega
 GPU_MAX=625000000; GPU_BOOST=670000000; GPU_FLOOR=525000000
 HOT=88; COOL=78; BOOST_OK=80          # °C
 SLOW=85                                # % de velocidade: abaixo disto, uma ação por vez, na hora
-VSLOW=75                               # abaixo disto: todas as ações de uma vez (e 2 ajustes por abertura)
-CALAM=65                               # "calamidade": reinicia o jogo com 3 ajustes (carrega o estado)
+VSLOW=75                               # abaixo disto: todas as ações de sistema de uma vez
+CALAM=65                               # "calamidade": reinicia o jogo com 1 ajuste (carrega o estado)
 BUSY=45                                # % de CPU do thread mais pesado para considerar "em jogo"
 GPU_BUSY=80                            # ... ou % de uso da GPU (gargalo gráfico: os threads ficam esperando)
 CPU4_MIN_GAME=1670400; CPU7_MIN_GAME=1862400
@@ -174,30 +175,34 @@ state_get() { [ -f "$OUT/estado-$1.txt" ] && grep -m1 "^$2=" "$OUT/estado-$1.txt
 state_set() {
     f="$OUT/estado-$1.txt"; touch "$f"; grep -v "^$2=" "$f" > "$f.tmp"; echo "$2=$3" >> "$f.tmp"; mv "$f.tmp" "$f"
 }
-# com o NetherSX2 fechado: avalia o último ajuste e aplica o(s) próximo(s), se houver pendência.
-# Velocidade < 75% na última sessão: 2 ajustes de uma vez (desfeitos juntos se piorar).
-# ultimo_ajuste / valor_anterior guardam listas separadas por ";". $1 = CRC do jogo.
+# Um ajuste de configuração por vez (regra do usuário, reafirmada em 2026-10-19), tanto na próxima
+# abertura quanto na calamidade; cada um é avaliado (mantido ou desfeito) antes do seguinte.
+# ultimo_ajuste / valor_anterior aceitam listas separadas por ";" (estados antigos com 2-3 juntos).
+# avalia o último ajuste do jogo $1 com a velocidade $2 (só com o NetherSX2 fechado)
+avaliar_ultimo() {
+    s=$1; speed=$2; base=$(state_get $s vel_antes_ajuste)
+    last=$(state_get $s ultimo_ajuste); prev=$(state_get $s valor_anterior)
+    [ -n "$last" ] && [ -n "$base" ] && [ -n "$speed" ] && [ "$(state_get $s avaliado)" = 0 ] || return
+    if [ "$speed" -lt $((base - 2)) ]; then
+        i=1; for st in $(echo "$last" | tr ';' ' '); do
+            pv=$(echo "$prev" | cut -d';' -f$i); step_set "$st" $s "$pv"; i=$((i + 1))
+        done
+        ajuste "$s: '$last' piorou ($base% -> $speed%), desfeito (volta: $prev)"
+        state_set $s ruins "$(state_get $s ruins) $(echo "$last" | tr ';' ' ')"
+    else
+        ajuste "$s: '$last' mantido ($base% -> $speed%)"
+    fi
+    state_set $s avaliado 1
+}
+# com o NetherSX2 fechado: avalia o último ajuste e aplica o próximo, se houver pendência ($1 = CRC)
 game_tune() {
     s=$1; pend=$(state_get $s pendente); [ -n "$pend" ] || return
-    speed=$(state_get $s ultima_vel); base=$(state_get $s vel_antes_ajuste)
-    last=$(state_get $s ultimo_ajuste); prev=$(state_get $s valor_anterior)
-    if [ -n "$last" ] && [ -n "$base" ] && [ "$(state_get $s avaliado)" = 0 ]; then
-        if [ "$speed" -lt $((base - 2)) ]; then
-            i=1; for st in $(echo "$last" | tr ';' ' '); do
-                pv=$(echo "$prev" | cut -d';' -f$i); step_set "$st" $s "$pv"; i=$((i + 1))
-            done
-            ajuste "$s: '$last' piorou ($base% -> $speed%), desfeito (volta: $prev)"
-            state_set $s ruins "$(state_get $s ruins) $(echo "$last" | tr ';' ' ')"
-        else
-            ajuste "$s: '$last' mantido ($base% -> $speed%)"
-        fi
-        state_set $s avaliado 1
-    fi
+    speed=$(state_get $s ultima_vel)
+    avaliar_ultimo $s "$speed"
     [ "$pend" = nenhum ] && return
-    n=1; [ -n "$speed" ] && [ "$speed" -lt $VSLOW ] && n=2
-    tune_apply $s $pend $n "$speed" || { state_set $s pendente nenhum; ajuste "$s: sem mais ajustes para tentar no gargalo $pend"; }
+    tune_apply $s $pend 1 "$speed" || { state_set $s pendente nenhum; ajuste "$s: sem mais ajustes para tentar no gargalo $pend"; }
 }
-# aplica até $3 ajustes ainda não tentados da escada do gargalo $2; guarda para avaliar/desfazer
+# aplica até $3 (hoje sempre 1) ajustes ainda não tentados da escada do gargalo $2; guarda para avaliar/desfazer
 tune_apply() {
     s=$1; case "$2" in gfx) steps=$GFX_STEPS;; *) steps=$CPU_STEPS;; esac
     tried="$(state_get $s tentados) $(state_get $s ruins)"
@@ -231,13 +236,16 @@ cal_has_steps() {
     for st in $st_list; do case " $tried " in *" $st "*) ;; *) return 0;; esac; done
     return 1
 }
-# calamidade: sai salvando pelo menu, aplica 3 ajustes e reabre o jogo (carrega o .resume.p2s)
+# calamidade: sai salvando pelo menu, avalia o ajuste anterior (se a sessão veio de uma calamidade),
+# aplica 1 ajuste e reabre o jogo (carrega o .resume.p2s). Se continuar lento, a sessão reaberta
+# pode ter a sua própria calamidade, com o ajuste seguinte.
 calamity_restart() {
     g=$(gargalo "$bname" "$gb")
     v=$(awk -F, -v busy=$BUSY -v gbusy=$GPU_BUSY 'NR>1 && ($7>=busy || $9>=gbusy) { n++; t+=$5 } END { if (n) printf "%d", t/n }' "$SESSION")
     sh "$HOTKEYS" action nether-exit
     if [ $? = 1 ]; then ajuste "$CRC: CALAMIDADE (${vel}%) mas não consegui salvar e sair; nada feito"; return; fi
-    if tune_apply $CRC $g 3 "${v:-$vel}"; then
+    avaliar_ultimo $CRC "${v:-$vel}"
+    if tune_apply $CRC $g 1 "${v:-$vel}"; then
         what="jogo reiniciado com $(state_get $CRC ultimo_ajuste)"
     else
         what="não há mais ajustes na escada $g; jogo reaberto sem mudanças"
