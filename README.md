@@ -52,10 +52,21 @@ No caminho foram testados e descartados: desligar o HDCP, forçar criptografia, 
 - **zram com lz4** (mais rápido que o lzo-rle padrão), trocado no boot por um script do Magisk.
 - **Limite de carga em 80%** pelo controle de carga oficial do LineageOS. Ao chegar no limite, a carga pausa e o aparelho fica alimentado direto pela fonte, o ideal para um console sempre na tomada.
 
-### Fase 3: início
+### Fase 3: camada de console e emulação
 
+- **Frontend Pegasus integrado**:
+  - Geração automática de coleções e comandos via [`tools/gen-pegasus.py`](tools/gen-pegasus.py) a partir das definições do ES-DE.
+  - **Padrão de lançamento de emuladores standalone**: no Android 16 (LineageOS 23.2), comandos via `am start` não repassam permissão de leitura de URI SAF em extras de string (`--es`). Seguindo a solução documentada da comunidade do Daijishō, emuladores standalone com acesso a armazenamento (NetherSX2, DuckStation, Dolphin) recebem o caminho POSIX bruto (`{file.path}`), permitindo inicialização direta e instantânea a 60 FPS sem travar na tela inicial.
 - **[DroidDeck](https://github.com/Droid-Deck/DroidDeck) 0.4.0** (Steam/Proton ARM64 no Android) instalado, com hash conferido e restrição de processos filhos do Android desligada. Suporte ao Adreno 650 é experimental (jogos DX11 leves).
-- Pesquisa de **ports nativos** (decompilação/recompilação, como 2 Ship 2 Harkinian, Dusklight, sm64coopdx e DevilutionX): rodam em ARM64 sem emulador e são preferíveis à emulação quando existem. O usuário fornece os arquivos do próprio jogo.
+- **Pesquisa de ports nativos** (decompilação/recompilação, como 2 Ship 2 Harkinian, Dusklight, sm64coopdx e DevilutionX): rodam em ARM64 sem emulador e são preferíveis à emulação quando existem. O usuário fornece os arquivos do próprio jogo.
+
+### Ferramentas complementares recomendadas
+
+Para preparação de mídias, organização de ROMs e otimização gráfica:
+
+- **[RetroForge](https://github.com/NookieAI/RetroForge) (NookieAI)**: aplicativo desktop portátil (Linux AppImage / Windows) com recurso *Card Perfect* em 1 clique: higieniza títulos, limpa nomes em caixa alta, baixa capas (*box art*) e metadados descriptografados em memória, e remove arquivos corrompidos direto no cartão SD.
+- **[Kura](https://github.com/NookieAI/kura) (NookieAI)**: gerenciador de bibliotecas PlayStation (PS1, PS2, PSP). Lê cabeçalhos reais de ISOs, PKGs e CSOs (identifica Title ID, SFO e versão sem depender do nome do arquivo) e permite transferência organizada pela rede local.
+- **Drivers Mesa Turnip (Adreno 650)**: para emuladores com suporte a driver Vulkan customizável (como Eden e NetherSX2-Turnip), o uso de builds recentes do Turnip entrega ganhos expressivos de estabilidade e renderização gráfica em comparação ao driver proprietário da Qualcomm.
 
 ## Próximos passos
 
@@ -81,6 +92,8 @@ No caminho foram testados e descartados: desligar o HDCP, forçar criptografia, 
   - `controller-hotkeys.sh`: atalhos universais no controle e auto-reconexão no Pegasus;
   - `perfd.sh`: assistente de desempenho e telemetria para emulação.
 - [`tools/gen-pegasus.py`](tools/gen-pegasus.py): gera os menus do [Pegasus](https://pegasus-frontend.org) a partir das listas de sistemas e emuladores do [ES-DE](https://es-de.org) (licença MIT, cópia em [`tools/esde/`](tools/esde/)), mostrando só os sistemas com emulador instalado e jogos.
+- [`tools/launch-ps2-test.sh`](tools/launch-ps2-test.sh): script auxiliar para teste de inicialização direta de ROMs no NetherSX2/AetherSX2 via ADB.
+- [`tests/test_gen_pegasus.py`](tests/test_gen_pegasus.py): testes unitários para validação das regras de tradução de comandos e parâmetros de lançamento.
 - [`theme/s20fe-console/`](theme/s20fe-console/): tema do Pegasus para TV e controle, mistura de Batocera (faixa de sistemas) com PS5 (fileira de capas e fundo com a tela do jogo).
 - [`tools/scrape.sh`](tools/scrape.sh): busca capas, vídeos e descrições com o [Skyscraper](https://github.com/Gemba/skyscraper) (ScreenScraper) identificando os jogos pelo nome, sem copiá-los para o PC.
 - `lineage/SHA256SUMS`: hashes dos arquivos oficiais do LineageOS usados.
