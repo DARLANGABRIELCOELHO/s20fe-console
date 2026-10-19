@@ -26,6 +26,20 @@ Lista de melhorias e projetos para avaliar no console. Os itens abaixo são prop
 - [NookieAI](https://github.com/NookieAI)
 - [PS2 Web Recomp](https://github.com/snuri00/ps2-web-recomp)
 
+## Lojas e fontes de aplicativos
+
+### Clientes ou repositórios de código aberto
+
+- [Aurora Store](https://gitlab.com/AuroraOSS/AuroraStore): cliente de código aberto para baixar apps da Google Play; os aplicativos distribuídos continuam sujeitos às licenças dos respectivos autores.
+- [F-Droid](https://f-droid.org): catálogo e infraestrutura de distribuição voltados a aplicativos livres e de código aberto.
+- [Droid-ify](https://github.com/Droid-ify/client) e [Neo Store](https://github.com/NeoApplications/Neo-Store): clientes de código aberto para repositórios compatíveis com F-Droid.
+- [IzzyOnDroid](https://apt.izzysoft.de/fdroid/): repositório independente compatível com clientes F-Droid; verifica e publica apps Android de código aberto.
+- [Obtainium](https://github.com/ImranR98/Obtainium): ferramenta de código aberto para acompanhar e instalar versões publicadas diretamente pelos desenvolvedores; não é uma loja centralizada.
+
+### Lojas proprietárias
+
+- [Aptoide](https://en.aptoide.com/), [Aptoide TV](https://tv.aptoide.com/) e [Uptodown](https://www.uptodown.com/): alternativas de distribuição de apps, mas não são lojas de código aberto. Aptoide TV é voltada a Android TV.
+
 ## Projetos em uso ou consultados
 
 - [ARMSX2](https://github.com/ARMSX2/ARMSX2)
