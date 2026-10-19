@@ -56,7 +56,7 @@ No caminho foram testados e descartados: desligar o HDCP, forçar criptografia, 
 
 - **Frontend Pegasus integrado**:
   - Geração automática de coleções e comandos via [`tools/gen-pegasus.py`](tools/gen-pegasus.py) a partir das definições do ES-DE.
-  - **Padrão de lançamento de emuladores standalone**: no Android 16 (LineageOS 23.2), comandos via `am start` não repassam permissão de leitura de URI SAF em extras de string (`--es`). Seguindo a solução documentada da comunidade do Daijishō, emuladores standalone com acesso a armazenamento (NetherSX2, DuckStation, Dolphin) recebem o caminho POSIX bruto (`{file.path}`), permitindo inicialização direta e instantânea a 60 FPS sem travar na tela inicial.
+  - **Lançamento do NetherSX2 (PS2)**: no Android 16 o NetherSX2 não consegue abrir nem o caminho bruto (`{file.path}`, bloqueado pelo scoped storage, porque ele não pede permissão de armazenamento) nem a URI do Pegasus (`{file.uri}` aponta para o provider do Pegasus, que outros apps não acessam). Seguindo o mesmo padrão do Daijishō, o gerador monta para cada jogo uma URI SAF (`content://com.android.externalstorage.documents/tree/…/document/…`) dentro da pasta `Games/ps2`, para a qual o NetherSX2 já tem permissão persistente, e grava um `launch:` por jogo no metadata. O jogo abre direto, sem passar pela tela inicial do emulador.
 - **[DroidDeck](https://github.com/Droid-Deck/DroidDeck) 0.4.0** (Steam/Proton ARM64 no Android) instalado, com hash conferido e restrição de processos filhos do Android desligada. Suporte ao Adreno 650 é experimental (jogos DX11 leves).
 - **Pesquisa de ports nativos** (decompilação/recompilação, como 2 Ship 2 Harkinian, Dusklight, sm64coopdx e DevilutionX): rodam em ARM64 sem emulador e são preferíveis à emulação quando existem. O usuário fornece os arquivos do próprio jogo.
 
@@ -88,11 +88,11 @@ Para preparação de mídias, organização de ROMs e otimização gráfica:
 - [`scripts/`](scripts/): scripts de boot do Magisk (`/data/adb/service.d/`):
   - `zram-lz4.sh`: zram 4 GB com lz4;
   - `gpu-max.sh`: define o limite da GPU no boot (625 MHz);
-  - `slim-services.sh`: encerra serviços de hardware sem uso (câmera, biometria, neural networks, NFC);
+  - `slim-services.sh`: encerra serviços de hardware sem uso (câmera, leitor de digital, neural networks, elemento seguro de pagamento);
   - `controller-hotkeys.sh`: atalhos universais no controle e auto-reconexão no Pegasus;
   - `perfd.sh`: assistente de desempenho e telemetria para emulação.
 - [`tools/gen-pegasus.py`](tools/gen-pegasus.py): gera os menus do [Pegasus](https://pegasus-frontend.org) a partir das listas de sistemas e emuladores do [ES-DE](https://es-de.org) (licença MIT, cópia em [`tools/esde/`](tools/esde/)), mostrando só os sistemas com emulador instalado e jogos.
-- [`tools/launch-ps2-test.sh`](tools/launch-ps2-test.sh): script auxiliar para teste de inicialização direta de ROMs no NetherSX2/AetherSX2 via ADB.
+- [`tools/launch-ps2-test.sh`](tools/launch-ps2-test.sh): testa pelo adb o lançamento de um jogo de PS2 no NetherSX2 com a mesma URI SAF que o gerador usa (`tools/launch-ps2-test.sh "Black.iso" --logcat`).
 - [`tests/test_gen_pegasus.py`](tests/test_gen_pegasus.py): testes unitários para validação das regras de tradução de comandos e parâmetros de lançamento.
 - [`theme/s20fe-console/`](theme/s20fe-console/): tema do Pegasus para TV e controle, mistura de Batocera (faixa de sistemas) com PS5 (fileira de capas e fundo com a tela do jogo).
 - [`tools/scrape.sh`](tools/scrape.sh): busca capas, vídeos e descrições com o [Skyscraper](https://github.com/Gemba/skyscraper) (ScreenScraper) identificando os jogos pelo nome, sem copiá-los para o PC.

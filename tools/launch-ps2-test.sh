@@ -1,97 +1,78 @@
 #!/usr/bin/env bash
+# Testa, pelo adb, o lançamento de um jogo de PS2 no NetherSX2 com o mesmo comando que o
+# tools/gen-pegasus.py grava no metadata do Pegasus.
+#
+# O NetherSX2 não lê caminho bruto ({file.path}: bloqueado pelo scoped storage do Android 16)
+# nem a URI do provider do Pegasus. Ele abre uma URI SAF dentro da pasta para a qual já tem
+# permissão persistente (Games/ps2): content://com.android.externalstorage.documents/tree/...
+#
+# Uso: tools/launch-ps2-test.sh <jogo.iso | /storage/.../jogo.iso> [--serial SERIAL] [--logcat]
+#   Só o nome do arquivo: procura em /storage/emulated/0/Games/ps2.
 set -u
 
+PKG=xyz.aethersx2.android
+INTERNAL=/storage/emulated/0
+
 usage() {
-  echo "Uso: $0 [/caminho/para/jogo.iso] [--serial SERIAL] [--logcat]"
-  echo
-  echo "Testa o comando de lançamento do PS2 no NetherSX2/AetherSX2 usando o formato esperado pelo projeto."
-  echo "Se o arquivo estiver fora do Android, o script converte para file:///storage/emulated/0/..."
+  sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'
   exit 1
 }
 
-SERIAL=""
+SERIAL=RX8T10JEJXY
 LOGCAT=0
 TARGET=""
-
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --serial)
-      SERIAL="$2"
-      shift 2
-      ;;
-    --logcat)
-      LOGCAT=1
-      shift
-      ;;
-    -h|--help)
-      usage
-      ;;
+    --serial) SERIAL="$2"; shift 2 ;;
+    --logcat) LOGCAT=1; shift ;;
+    -h|--help) usage ;;
     *)
-      if [ -z "$TARGET" ]; then
-        TARGET="$1"
-      else
-        echo "Erro: argumento extra: $1" >&2
-        usage
-      fi
-      shift
-      ;;
+      [ -z "$TARGET" ] || { echo "Erro: argumento extra: $1" >&2; usage; }
+      TARGET="$1"; shift ;;
   esac
 done
+[ -n "$TARGET" ] || usage
+ADB=(adb -s "$SERIAL")
 
-if [ -z "$TARGET" ]; then
-  usage
-fi
-
-if [ -n "$SERIAL" ]; then
-  ADB=(adb -s "$SERIAL")
-else
-  ADB=(adb)
-fi
-
-# Normaliza caminho do jogo para o aparelho.
 case "$TARGET" in
-  file://*)
-    ROM_PATH="${TARGET#file://}"
-    ;;
-  /storage/*|/data/*)
-    ROM_PATH="$TARGET"
-    ;;
-  *)
-    if [ -f "$TARGET" ]; then
-      # local do PC: deixa em caminho linux e tenta o equivalente em /storage/emulated/0
-      BASE="$(basename "$TARGET")"
-      ROM_PATH="/storage/emulated/0/$BASE"
-    else
-      ROM_PATH="/storage/emulated/0/Games/ps2/$TARGET"
-    fi
-    ;;
+  /storage/*) ROM_PATH="$TARGET" ;;
+  */*) echo "Erro: use o nome do arquivo ou um caminho /storage/... do aparelho" >&2; exit 1 ;;
+  *) ROM_PATH="$INTERNAL/Games/ps2/$TARGET" ;;
 esac
 
-# Tenta primeiro o NetherSX2/AetherSX2 e cai para ARMSX2 se não estiver instalado.
-for PKG in xyz.aethersx2.android com.armsx2; do
-  case "$PKG" in
-    xyz.aethersx2.android)
-      ACTIVITY="/.EmulationActivity"
-      CMD=("${ADB[@]}" shell am start --user 0 -n "$PKG$ACTIVITY" --activity-clear-task --activity-clear-top -a android.intent.action.MAIN --es bootPath "'$ROM_PATH'")
-      ;;
-    com.armsx2)
-      ACTIVITY="/.MainActivity"
-      CMD=("${ADB[@]}" shell am start --user 0 -n "$PKG$ACTIVITY" -a android.intent.action.VIEW --activity-clear-top --es path "'$ROM_PATH'")
-      ;;
-  esac
+# mesma lógica de android_document_uri() do gen-pegasus.py
+urlencode() {
+  local s="$1" out="" c i
+  for ((i = 0; i < ${#s}; i++)); do
+    c="${s:i:1}"
+    case "$c" in
+      [A-Za-z0-9._~-]) out+="$c" ;;
+      *) out+=$(printf '%s' "$c" | od -An -tx1 | tr -d ' \n' | sed 's/../%\U&/g') ;;
+    esac
+  done
+  printf '%s' "$out"
+}
+DIR="${ROM_PATH%/*}"
+FILE="${ROM_PATH##*/}"
+case "$DIR" in
+  "$INTERNAL"/*) VOLUME=primary; REL="${DIR#"$INTERNAL"/}" ;;
+  /storage/*/*) REST="${DIR#/storage/}"; VOLUME="${REST%%/*}"; REL="${REST#*/}" ;;
+  *) echo "Erro: caminho fora de /storage: $ROM_PATH" >&2; exit 1 ;;
+esac
+TREE="$VOLUME:$REL"
+URI="content://com.android.externalstorage.documents/tree/$(urlencode "$TREE")/document/$(urlencode "$TREE/$FILE")"
 
-  if "${ADB[@]}" shell pm list packages | grep -Fq "$PKG"; then
-    echo "[launch] $PKG"
-    echo "[cmd] ${CMD[*]}"
-    "${CMD[@]}"
-    echo
-    if [ "$LOGCAT" -eq 1 ]; then
-      echo "[logcat]"
-      "${ADB[@]}" logcat -d | grep -iE 'aethersx2|nether|ps2|emulation|bootPath|error|fatal' | tail -n 80 || true
-    fi
-    exit 0
-  fi
-done
+[ "$("${ADB[@]}" shell getprop ro.product.model | tr -d '\r')" = SM-G780G ] || { echo "Erro: aparelho inesperado" >&2; exit 1; }
+"${ADB[@]}" shell pm list packages "$PKG" | grep -qx "package:$PKG" || { echo "Erro: NetherSX2 ($PKG) não instalado" >&2; exit 2; }
+"${ADB[@]}" shell "ls '$ROM_PATH'" >/dev/null 2>&1 || { echo "Erro: arquivo não encontrado: $ROM_PATH" >&2; exit 1; }
 
-echo "Erro: nenhum emulador PS2 encontrado no aparelho (NetherSX2 ou ARMSX2)." >&2
-exit 2
+CMD=(am start --user 0 -n "$PKG/.EmulationActivity" --activity-clear-task --activity-clear-top
+     -a android.intent.action.MAIN --es bootPath "'$URI'")
+echo "[cmd] ${CMD[*]}"
+"${ADB[@]}" logcat -c
+"${ADB[@]}" shell "${CMD[@]}"
+if [ "$LOGCAT" -eq 1 ]; then
+  sleep 5
+  echo "[logcat]"
+  "${ADB[@]}" logcat -d | grep -iE 'aethersx2|bootPath|SecurityException|FileNotFound|fatal' | tail -n 80 || true
+fi

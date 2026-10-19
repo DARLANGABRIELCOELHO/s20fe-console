@@ -3,8 +3,8 @@
 #   Select + Start             -> volta ao menu (Home = Pegasus); o jogo fica pausado em segundo plano
 #   LB + RB + Select + Start   -> fecha o app em primeiro plano e volta ao menu
 # Antes de sair, salva o estado do jogo do jeito de cada emulador (PPSSPP: tecla F2 mapeada para
-# "Save State"; RetroArch: sai pelo Esc, que grava o estado automático; ARMSX2: autosave a cada
-# 1 min + ao fechar, configurado nas preferências dele). Ao abrir, cada um carrega o último estado.
+# "Save State"; RetroArch: sai pelo Esc, que grava o estado automático). Ao abrir, cada um carrega
+# o último estado. NetherSX2 (PS2): ainda sem salvamento de estado ao sair (pendente).
 # Também reinicia o Pegasus quando um controle novo conecta: o Qt Gamepad do Pegasus só enxerga
 # os controles que existiam quando ele abriu (sem isso, só os direcionais funcionam).
 # Funciona com qualquer controle porque lê, para cada controle conectado, o mesmo arquivo de mapa

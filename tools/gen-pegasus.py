@@ -8,9 +8,11 @@ Fluxo:
   3. para cada sistema com jogos, escolhe o primeiro comando do ES-DE cujo emulador está
      instalado (ou o preferido em --emu), traduz para "am start" e grava o metadata.pegasus.txt
      na pasta do sistema; atualiza o game_dirs.txt do Pegasus.
+  4. NetherSX2 (bootPath): grava um launch: por jogo com a URI SAF da pasta do sistema, para a
+     qual ele já tem permissão (ele não abre {file.path} nem a URI do provider do Pegasus).
 
 Uso:
-  tools/gen-pegasus.py [-s SERIAL] [--emu ps2=ARMSX2 --emu psp="PPSSPP (Standalone)"] [--dry-run]
+  tools/gen-pegasus.py [-s SERIAL] [--emu ps2=NETHERSX2 --emu psp="PPSSPP (Standalone)"] [--dry-run]
 """
 
 import argparse
@@ -236,7 +238,7 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-s", "--serial", default="RX8T10JEJXY")
     ap.add_argument("--emu", action="append", default=[], metavar="SISTEMA=EMULADOR",
-                    help="emulador preferido: nome do ES-DE (ex.: ARMSX2) ou rótulo do comando")
+                    help="emulador preferido: nome do ES-DE (ex.: NETHERSX2) ou rótulo do comando")
     ap.add_argument("--dry-run", action="store_true", help="só mostra, não grava no aparelho")
     ap.add_argument("--media", type=Path, default=Path.home() / "s20fe-build/skyscraper/out",
                     help="saída do Skyscraper (-f pegasus) por sistema: <media>/<sistema>/")
