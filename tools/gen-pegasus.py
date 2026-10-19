@@ -20,6 +20,7 @@ import sys
 import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from urllib.parse import quote
 
 ESDE = Path(__file__).resolve().parent / "esde"
 INTERNAL = "/storage/emulated/0"
@@ -101,6 +102,54 @@ def value(v, pkg, rompath):
     return v
 
 
+def android_document_uri(root, filename):
+    """Build a document URI inside the SAF tree the emulator has permission to read."""
+    if root.startswith(f"{INTERNAL}/"):
+        volume_id, storage_root = "primary", INTERNAL
+    else:
+        parts = Path(root).parts
+        volume_id, storage_root = parts[2], f"/storage/{parts[2]}"
+    tree_id = f"{volume_id}:{Path(root).relative_to(storage_root).as_posix()}"
+    document_id = f"{tree_id}/{filename}"
+    return ("content://com.android.externalstorage.documents/tree/"
+            f"{quote(tree_id, safe='')}/document/{quote(document_id, safe='')}")
+
+
+def add_game_launches(extra, games, launch_for_file):
+    blocks, current = [], []
+    for line in extra.splitlines():
+        if line.startswith("game:"):
+            if current:
+                blocks.append(current)
+            current = [line]
+        elif current:
+            current.append(line)
+    if current:
+        blocks.append(current)
+
+    present, output = set(), []
+    for block in blocks:
+        filename = next((line.partition(": ")[2] for line in block
+                         if line.startswith("file: ")), None)
+        if filename not in games:
+            output.append("\n".join(block).rstrip())
+            continue
+        present.add(filename)
+        updated = []
+        for line in block:
+            if line.startswith("launch: "):
+                continue
+            updated.append(line)
+            if line.startswith("file: "):
+                updated.append(f"launch: {launch_for_file(filename)}")
+        output.append("\n".join(updated).rstrip())
+
+    for filename in sorted(set(games) - present):
+        output.append(f"game: {Path(filename).stem}\nfile: {filename}\n"
+                      f"launch: {launch_for_file(filename)}")
+    return "\n\n".join(output) + "\n" if output else ""
+
+
 def scraped_games(media_root, system, games):
     """Blocos 'game:' do Skyscraper (saída -f pegasus em <media_root>/<sistema>/), com caminhos
     reescritos para relativos à pasta do sistema no aparelho. Só os jogos que existem lá."""
@@ -169,11 +218,6 @@ def translate(command, rules, installed, rompath, has_file=lambda path: True):
             kind, _, extra = key.strip("%").partition("_")
             if kind not in EXTRA_TYPES:
                 raise Unsupported(t)
-            # NetherSX2: o ES-DE usa %ROMSAF% (content:// URI), mas com a permissão
-            # MANAGE_EXTERNAL_STORAGE o bootPath aceita caminho bruto — e o Pegasus
-            # só aceita comandos "am start", não scripts de shell.
-            if extra == "bootPath" and pkg == "xyz.aethersx2.android" and "%ROMSAF%" in val:
-                val = val.replace("%ROMSAF%", "%ROMRAW%")
             if extra in ("AutoStartFile", "rom", "ROM") and "%ROMSAF%" in val:
                 val = val.replace("%ROMSAF%", "%ROMRAW%")
             v = value(val, pkg, rompath)
@@ -264,8 +308,16 @@ def main():
                     f"# emulador: {label}\n"
                     f"launch: {launch}\n")
             extra, media_dir = scraped_games(args.media, name, games)
-            meta += extra
             scraped = extra.count("\ngame: ") + extra.startswith("game: ")
+            if "--es bootPath '{file.uri}'" in launch:
+                extra = add_game_launches(
+                    extra,
+                    games,
+                    lambda filename: launch.replace(
+                        "'{file.uri}'", shlex.quote(android_document_uri(path, filename))
+                    ),
+                )
+            meta += extra
             print(f"OK {path}: {len(games)} jogos ({scraped} com capa/dados) -> {label}\n   {launch}")
             dirs.append(path)
             if not args.dry_run:
