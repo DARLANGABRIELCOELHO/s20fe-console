@@ -83,10 +83,15 @@ def resolve_emulator(name, rules, installed):
 
 
 def value(v, pkg, rompath):
-    """Traduz o valor de um parâmetro do ES-DE para variáveis do Pegasus."""
+    """Traduz o valor de um parâmetro do ES-DE para variáveis do Pegasus.
+
+    `%ROMSAF%` representa uma URI que o app pode abrir via Storage Access Framework;
+    `%ROMRAW%` e `%ROM%` representam caminhos brutos do sistema de arquivos.
+    """
     if "%INJECT%" in v or "%FILEINJECT%" in v or "%BASENAME%" in v:
         raise Unsupported(v)
-    v = (v.replace("%ROMSAF%", "{file.uri}").replace("%ROMPROVIDER%", "{file.uri}")
+    v = (v.replace("%ROMSAF%", "{file.uri}")
+          .replace("%ROMPROVIDER%", "{file.uri}")
           .replace("%ROMRAW%", "{file.path}").replace("%ROM%", "{file.path}")
           .replace("%GAMEDIRRAW%", "{file.dir}").replace("%ROMPATHRAW%", rompath)
           .replace("%EXTERNALDATA%", EXTERNALDATA).replace("%INTERNALDATA%", INTERNALDATA)
@@ -164,13 +169,23 @@ def translate(command, rules, installed, rompath, has_file=lambda path: True):
             kind, _, extra = key.strip("%").partition("_")
             if kind not in EXTRA_TYPES:
                 raise Unsupported(t)
+            # NetherSX2: o ES-DE usa %ROMSAF% (content:// URI), mas com a permissão
+            # MANAGE_EXTERNAL_STORAGE o bootPath aceita caminho bruto — e o Pegasus
+            # só aceita comandos "am start", não scripts de shell.
+            if extra == "bootPath" and pkg == "xyz.aethersx2.android" and "%ROMSAF%" in val:
+                val = val.replace("%ROMSAF%", "%ROMRAW%")
+            if extra in ("AutoStartFile", "rom", "ROM") and "%ROMSAF%" in val:
+                val = val.replace("%ROMSAF%", "%ROMRAW%")
             v = value(val, pkg, rompath)
             if v.endswith("_libretro_android.so") and not has_file(v):
                 raise MissingCore(v.rsplit("/", 1)[-1])
             out += [EXTRA_TYPES[kind], extra, v]
         else:
             raise Unsupported(t)
-    return " ".join(shlex.quote(a) if (" " in a or "'" in a or ";" in a) else a for a in out)
+    return " ".join(
+        shlex.quote(a) if (" " in a or "'" in a or ";" in a) else f"'{a}'" if "{file." in a else a
+        for a in out
+    )
 
 
 def main():
