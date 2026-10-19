@@ -65,6 +65,12 @@ URI="content://com.android.externalstorage.documents/tree/$(urlencode "$TREE")/d
 [ "$("${ADB[@]}" shell getprop ro.product.model | tr -d '\r')" = SM-G780G ] || { echo "Erro: aparelho inesperado" >&2; exit 1; }
 "${ADB[@]}" shell pm list packages "$PKG" | grep -qx "package:$PKG" || { echo "Erro: NetherSX2 ($PKG) não instalado" >&2; exit 2; }
 "${ADB[@]}" shell "ls '$ROM_PATH'" >/dev/null 2>&1 || { echo "Erro: arquivo não encontrado: $ROM_PATH" >&2; exit 1; }
+# o NetherSX2 só roda um jogo por processo: com ele aberto, o 2º jogo fica em tela preta
+if "${ADB[@]}" shell pidof "$PKG" >/dev/null 2>&1; then
+  echo "Erro: o NetherSX2 está aberto. Feche antes com Select+Start no controle (salva o estado)" >&2
+  echo "      ou, sem jogo rodando: adb shell am force-stop $PKG" >&2
+  exit 3
+fi
 
 CMD=(am start --user 0 -n "$PKG/.EmulationActivity" --activity-clear-task --activity-clear-top
      -a android.intent.action.MAIN --es bootPath "'$URI'")

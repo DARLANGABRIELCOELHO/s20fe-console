@@ -1,0 +1,5 @@
+# Tudo em LF, também no Windows (core.autocrlf=true neste PC): os scripts vão para o
+# celular e o sh do Android quebra com CRLF.
+* text=auto eol=lf
+*.png binary
+*.jpg binary

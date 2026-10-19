@@ -10,6 +10,12 @@ Fluxo:
      na pasta do sistema; atualiza o game_dirs.txt do Pegasus.
   4. NetherSX2 (bootPath): grava um launch: por jogo com a URI SAF da pasta do sistema, para a
      qual ele já tem permissão (ele não abre {file.path} nem a URI do provider do Pegasus).
+     Com o serial e o CRC do jogo (lidos do gamelist.cache do NetherSX2), grava também
+     x-nethersx2-serial/-crc/-state e, se o <serial> (<CRC>).resume.p2s já existe, põe
+     --es saveStatePath no launch: (o jogo abre onde parou). Sem o arquivo o NetherSX2 recusa o
+     extra; o scripts/controller-hotkeys.sh inclui o extra quando o 1º estado é gravado.
+  5. Capas e dados: da saída do Skyscraper no PC (--media); se ela não existe neste PC, reaproveita
+     os blocos game: do metadata.pegasus.txt que já está no aparelho.
 
 Uso:
   tools/gen-pegasus.py [-s SERIAL] [--emu ps2=NETHERSX2 --emu psp="PPSSPP (Standalone)"] [--dry-run]
@@ -17,12 +23,13 @@ Uso:
 
 import argparse
 import shlex
+import struct
 import subprocess
 import sys
 import tempfile
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from urllib.parse import quote
+from urllib.parse import quote, unquote
 
 ESDE = Path(__file__).resolve().parent / "esde"
 INTERNAL = "/storage/emulated/0"
@@ -32,6 +39,9 @@ EXTERNALDATA = INTERNAL
 INTERNALDATA = "/data/data"
 # Preferências do console (sobrescritas por --emu)
 DEFAULT_PREFS = {"ps2": "NETHERSX2", "psp": "PPSSPP (Standalone)"}
+NETHER_PKG = "xyz.aethersx2.android"
+NETHER_DATA = f"/data/data/{NETHER_PKG}"
+NETHER_STATES = f"{INTERNAL}/Android/data/{NETHER_PKG}/files/sstates"
 
 # Tipos de extra do ES-DE -> opção do am
 EXTRA_TYPES = {
@@ -54,7 +64,49 @@ class Unsupported(Exception):
 
 def adb(serial, *args):
     cmd = ["adb"] + (["-s", serial] if serial else []) + list(args)
-    return subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+    return subprocess.run(cmd, check=True, capture_output=True, text=True,
+                          encoding="utf-8").stdout
+
+
+def adb_su_bytes(serial, command):
+    """Saída binária de um comando root no aparelho (vazia se falhar)."""
+    cmd = ["adb"] + (["-s", serial] if serial else []) + ["exec-out", f"su -c {shlex.quote(command)}"]
+    return subprocess.run(cmd, capture_output=True).stdout
+
+
+def parse_nether_gamelist(data):
+    """gamelist.cache do NetherSX2 -> {URI SAF decodificada: (serial, CRC em hex)}.
+
+    Formato (NetherSX2 2.2n): "GLCE" + u32 versão; por jogo: caminho, serial e título (u32
+    tamanho + texto), u8 tipo, u8 região, u64 tamanho, u64 mtime, u32 CRC, u8 compatibilidade.
+    """
+    games = {}
+    if data[:4] != b"GLCE":
+        return games
+    off = 8
+
+    def text():
+        nonlocal off
+        n, = struct.unpack_from("<I", data, off)
+        off += 4
+        value = data[off:off + n].decode("utf-8")
+        off += n
+        return value
+
+    tail = struct.Struct("<BBQQIB")
+    try:
+        while off < len(data):
+            path, serial, _title = text(), text(), text()
+            *_, crc, _compat = tail.unpack_from(data, off)
+            off += tail.size
+            games[unquote(path)] = (serial, f"{crc:08X}")
+    except (struct.error, UnicodeDecodeError):
+        pass  # formato inesperado: fica com o que já leu
+    return games
+
+
+def nether_state_path(serial, crc):
+    return f"{NETHER_STATES}/{serial} ({crc}).resume.p2s"
 
 
 def load_find_rules():
@@ -117,7 +169,9 @@ def android_document_uri(root, filename):
             f"{quote(tree_id, safe='')}/document/{quote(document_id, safe='')}")
 
 
-def add_game_launches(extra, games, launch_for_file):
+def add_game_launches(extra, games, launch_for_file, fields_for_file=lambda filename: []):
+    """Põe launch: (e os campos extras de fields_for_file) em cada bloco game: dos jogos da pasta;
+    cria um bloco mínimo para os jogos sem bloco. Campos x-nethersx2-* antigos são trocados."""
     blocks, current = [], []
     for line in extra.splitlines():
         if line.startswith("game:"):
@@ -139,17 +193,19 @@ def add_game_launches(extra, games, launch_for_file):
         present.add(filename)
         updated = []
         for line in block:
-            if line.startswith("launch: "):
+            if line.startswith(("launch: ", "x-nethersx2-")):
                 continue
             updated.append(line)
             if line.startswith("file: "):
                 updated.append(f"launch: {launch_for_file(filename)}")
+                updated.extend(fields_for_file(filename))
         output.append("\n".join(updated).rstrip())
 
     for filename in sorted(set(games) - present):
-        output.append(f"game: {Path(filename).stem}\nfile: {filename}\n"
-                      f"launch: {launch_for_file(filename)}")
-    return "\n\n".join(output) + "\n" if output else ""
+        output.append("\n".join([f"game: {Path(filename).stem}", f"file: {filename}",
+                                 f"launch: {launch_for_file(filename)}",
+                                 *fields_for_file(filename)]))
+    return "\n\n" + "\n\n".join(output) + "\n" if output else ""
 
 
 def scraped_games(media_root, system, games):
@@ -184,6 +240,27 @@ def scraped_games(media_root, system, games):
         if fname in present:
             out.append("\n".join(lines).rstrip())
     return ("\n\n" + "\n\n".join(out) + "\n") if out else "", media_root / system / "media"
+
+
+def device_games(text, games):
+    """Blocos game: do metadata.pegasus.txt que já está no aparelho (capas em media/, caminhos já
+    relativos), para quando a saída do Skyscraper não está neste PC. Só os jogos que existem."""
+    blocks, cur = [], []
+    for line in text.splitlines():
+        if line.startswith("game:"):
+            if cur:
+                blocks.append(cur)
+            cur = [line]
+        elif cur:
+            cur.append(line)
+    if cur:
+        blocks.append(cur)
+    present, out = set(games), []
+    for b in blocks:
+        fname = next((l.partition(": ")[2] for l in b if l.startswith("file: ")), None)
+        if fname in present:
+            out.append("\n".join(l for l in b if not l.startswith("launch: ")).rstrip())
+    return ("\n\n" + "\n\n".join(out) + "\n") if out else ""
 
 
 class MissingCore(Exception):
@@ -240,6 +317,7 @@ def main():
     ap.add_argument("--emu", action="append", default=[], metavar="SISTEMA=EMULADOR",
                     help="emulador preferido: nome do ES-DE (ex.: NETHERSX2) ou rótulo do comando")
     ap.add_argument("--dry-run", action="store_true", help="só mostra, não grava no aparelho")
+    ap.add_argument("--show", action="store_true", help="com --dry-run: mostra o metadata gerado")
     ap.add_argument("--media", type=Path, default=Path.home() / "s20fe-build/skyscraper/out",
                     help="saída do Skyscraper (-f pegasus) por sistema: <media>/<sistema>/")
     args = ap.parse_args()
@@ -266,6 +344,29 @@ def main():
                                  capture_output=True, text=True).stdout
             file_cache[d] = set(out.split())
         return name in file_cache[d]
+
+    nether_cache = {}
+
+    def nether_info():
+        """(jogos do gamelist.cache, pastas SAF liberadas, estados .resume.p2s existentes)."""
+        if not nether_cache:
+            games = parse_nether_gamelist(adb_su_bytes(
+                args.serial, f"cat {NETHER_DATA}/cache/gamelist.cache"))
+            prefs_xml = adb_su_bytes(
+                args.serial, f"cat {NETHER_DATA}/shared_prefs/{NETHER_PKG}_preferences.xml")
+            trees = set()
+            try:
+                for s in ET.fromstring(prefs_xml).iter("set"):
+                    if s.get("name") == "GameList/RecursivePaths":
+                        trees = {unquote(e.text or "") for e in s.iter("string")}
+            except ET.ParseError:
+                pass
+            # find, não ls: o ls do Android escapa os espaços ("SLUS-21376\ (5C891FF1)...")
+            states = {l.rsplit("/", 1)[-1] for l in adb_su_bytes(
+                args.serial, f"find {NETHER_STATES} -maxdepth 1 -type f")
+                .decode("utf-8", "replace").splitlines()}
+            nether_cache.update(games=games, trees=trees, states=states)
+        return nether_cache["games"], nether_cache["trees"], nether_cache["states"]
 
     rules, systems = load_find_rules(), load_systems()
     by_name = {s["name"]: s for s in systems}
@@ -310,30 +411,56 @@ def main():
                     f"# emulador: {label}\n"
                     f"launch: {launch}\n")
             extra, media_dir = scraped_games(args.media, name, games)
+            if media_dir is None:   # sem a saída do Skyscraper neste PC: usa o que está no aparelho
+                current = adb(args.serial, "shell", f"cat '{path}/metadata.pegasus.txt' 2>/dev/null")
+                extra = device_games(current, games)
             scraped = extra.count("\ngame: ") + extra.startswith("game: ")
             if "--es bootPath '{file.uri}'" in launch:
-                extra = add_game_launches(
-                    extra,
-                    games,
-                    lambda filename: launch.replace(
-                        "'{file.uri}'", shlex.quote(android_document_uri(path, filename))
-                    ),
-                )
+                nether_games, trees, states = nether_info()
+                tree_id = unquote(android_document_uri(path, "x").split("/document/")[0])
+                if tree_id not in trees:
+                    print(f"   AVISO: o NetherSX2 não tem permissão para {path}; adicione a pasta "
+                          f"na lista de jogos dele, senão os jogos daqui não abrem")
+
+                def nether_launch(filename):
+                    uri = android_document_uri(path, filename)
+                    cmd = launch.replace("'{file.uri}'", shlex.quote(uri))
+                    serial, crc = nether_games.get(unquote(uri), (None, None))
+                    state = nether_state_path(serial, crc) if serial else None
+                    if state and state.rsplit("/", 1)[1] in states:
+                        cmd += f" --es saveStatePath {shlex.quote(state)}"
+                    return cmd
+
+                def nether_fields(filename):
+                    serial, crc = nether_games.get(
+                        unquote(android_document_uri(path, filename)), (None, None))
+                    if not serial:
+                        print(f"   AVISO: {filename} não está no gamelist.cache do NetherSX2 (abra a "
+                              f"lista de jogos dele uma vez); sem serial/CRC, não retoma o estado")
+                        return []
+                    return [f"x-nethersx2-serial: {serial}", f"x-nethersx2-crc: {crc}",
+                            f"x-nethersx2-state: {nether_state_path(serial, crc)}"]
+
+                extra = add_game_launches(extra, games, nether_launch, nether_fields)
             meta += extra
             print(f"OK {path}: {len(games)} jogos ({scraped} com capa/dados) -> {label}\n   {launch}")
             dirs.append(path)
+            if args.dry_run and args.show:
+                print(meta)
             if not args.dry_run:
-                with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as tmp:
+                with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False,
+                                                 encoding="utf-8", newline="\n") as tmp:
                     tmp.write(meta)
                 adb(args.serial, "push", tmp.name, f"{path}/metadata.pegasus.txt")
                 Path(tmp.name).unlink()
-                if extra and media_dir.is_dir():
+                if extra and media_dir and media_dir.is_dir():
                     adb(args.serial, "shell", f"mkdir -p '{path}/media'")
                     for sub in sorted(p for p in media_dir.iterdir() if p.is_dir()):
                         adb(args.serial, "push", "--sync", str(sub), f"{path}/media/")
 
     if not args.dry_run and dirs:
-        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False) as tmp:
+        with tempfile.NamedTemporaryFile("w", suffix=".txt", delete=False,
+                                         encoding="utf-8", newline="\n") as tmp:
             tmp.write("\n".join(dirs) + "\n")
         adb(args.serial, "shell", f"mkdir -p '{PEGASUS_DIR}'")
         adb(args.serial, "push", tmp.name, f"{PEGASUS_DIR}/game_dirs.txt")
