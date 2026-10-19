@@ -1,11 +1,13 @@
 #!/system/bin/sh
-# s20fe: atalhos de saída iguais para qualquer controle (roda como root pelo Magisk, service.d).
-#   Select + Start             -> volta ao menu (Home = Pegasus); o jogo fica pausado em segundo plano
-#                                 (NetherSX2: salva e sai, ver abaixo)
-#   LB + RB + Select + Start   -> fecha o app em primeiro plano e volta ao menu
-# Antes de sair, salva o estado do jogo do jeito de cada emulador (PPSSPP: tecla F2 mapeada para
+# s20fe: atalhos iguais para qualquer controle (roda como root pelo Magisk, service.d).
+#   Select + Start                    -> fecha o jogo atual (salvando o estado) e volta ao Pegasus
+#   L1 + R1 (segurados) + Select+Start -> abre o menu/configurações do emulador (o jogo continua)
+#   Botão PS / Home / Guide           -> "desliga" (apaga a tela, console em espera) e liga de novo;
+#                                        com a tela apagada, qualquer botão do controle também liga
+# Antes de fechar, salva o estado do jogo do jeito de cada emulador (PPSSPP: tecla F2 mapeada para
 # "Save State"; RetroArch: sai pelo Esc, que grava o estado automático). Ao abrir, cada um carrega
-# o último estado.
+# o último estado. Dolphin, Eden e outros: fechados direto (os jogos salvam no cartão de memória).
+# Menu do emulador: BACK (NetherSX2, Dolphin, PPSSPP, Eden) ou F1 (RetroArch, input_menu_toggle).
 # NetherSX2 (PS2): sai sempre pelo "Sair do jogo" do menu de pausa, que grava o
 # <serial> (<CRC>).resume.p2s (EmuCore/SaveStateOnShutdown=true); o Pegasus abre o jogo com
 # --es saveStatePath apontando para ele (tools/gen-pegasus.py). Não dá para deixar o NetherSX2
@@ -121,18 +123,30 @@ save_state() {
 
 action() {
     case "$1" in
-    home)
-        pkg=$(top_pkg)
-        save_state "$pkg"
-        input keyevent KEYCODE_HOME
-        log "home ($pkg)" ;;
     close)
         pkg=$(top_pkg)
         case "$pkg" in
-        ""|"$HOME_PKG"|com.android.systemui|com.android.launcher3) log "close ignorado ($pkg)" ;;
+        ""|"$HOME_PKG"|com.android.systemui|com.android.launcher3) log "close ignorado ($pkg)"; return ;;
         *) save_state "$pkg" || am force-stop "$pkg"; log "close $pkg" ;;
         esac
         input keyevent KEYCODE_HOME ;;
+    menu)
+        pkg=$(top_pkg)
+        case "$pkg" in
+        ""|"$HOME_PKG"|com.android.systemui|com.android.launcher3) log "menu ignorado ($pkg)" ;;
+        com.retroarch) input keyevent KEYCODE_F1; log "menu $pkg (F1)" ;;
+        *) input keyevent KEYCODE_BACK; log "menu $pkg (BACK)" ;;
+        esac ;;
+    power)
+        st=$(dumpsys power | sed -n 's/^ *mWakefulness=\([A-Za-z]*\).*/\1/p' | head -1)
+        ago=$(dumpsys power | sed -n 's/^ *mLastWakeTime=.*(\([0-9]*\) ms ago).*/\1/p' | head -1)
+        if [ "$st" != Awake ]; then
+            input keyevent KEYCODE_WAKEUP; wm dismiss-keyguard; log "ligado (botão Home do controle)"
+        elif [ "${ago:-999999}" -lt 2500 ]; then
+            wm dismiss-keyguard; log "botão Home ignorado: a tela acabou de acordar"
+        else
+            input keyevent KEYCODE_SLEEP; log "desligado (espera) pelo botão Home do controle"
+        fi ;;
     nether-exit)    # usado pelo perfd (calamidade): sai salvando, sem voltar ao Home
         nether_exit ;;
     restart-home)
@@ -189,6 +203,7 @@ while true; do
                     else if (k[3] == "BUTTON_START") role = "T"
                     else if (k[3] == "BUTTON_L1") role = "L"
                     else if (k[3] == "BUTTON_R1") role = "R"
+                    else if (k[3] == "BUTTON_MODE") role = "P"
                     if (role != "") roles[dev SUBSEP code] = role
                 }
                 close(f[2])
@@ -201,11 +216,12 @@ while true; do
             dev = $1; sub(/:$/, "", dev)
             if ($2 != "0001" || !((dev SUBSEP $3) in roles)) next
             r = roles[dev SUBSEP $3]
-            down[dev, r] = ($4 != "00000000")
+            down[dev, r] = ($4 != "00000000")      # 1 = apertou, 2 = repetição, 0 = soltou
+            if (r == "P") { if ($4 == "00000001") system("sh " self " action power"); next }
             both = down[dev, "S"] && down[dev, "T"]
             if (both && !fired[dev]) {
                 fired[dev] = 1
-                a = (down[dev, "L"] && down[dev, "R"]) ? "close" : "home"
+                a = (down[dev, "L"] && down[dev, "R"]) ? "menu" : "close"
                 system("sh " self " action " a)
             } else if (!both) fired[dev] = 0
         }

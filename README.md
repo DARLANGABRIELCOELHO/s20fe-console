@@ -73,11 +73,13 @@ Para preparação de mídias, organização de ROMs e otimização gráfica:
 
 1. ~~**Fechar a Fase 1**~~: ✅ concluída (2026-10-18).
 2. ~~**Fechar a Fase 2**~~: ✅ concluída (2026-10-18).
-3. **Fase 3, camada de console**:
-   - instalar os emuladores que faltam (Dolphin, DuckStation) com driver Turnip onde houver suporte;
+3. **Fase 3, camada de console** (falta o que depende de arquivos do usuário):
+   - ~~instalar o Dolphin~~ (2603a, F-Droid) e o Turnip (v26.3.0-R6 em `Download/turnip`); falta a configuração inicial no Dolphin (pastas, driver, controle) e testar com um jogo;
+   - PS1: SwanStation no RetroArch (o DuckStation para Android só sai pela Google Play);
+   - Switch (Eden): `prod.keys`, firmware e jogos do usuário;
    - testar os ports nativos e o DroidDeck com jogos reais;
-   - baixar vídeos de preview para o tema;
-   - mapear controles e atalhos.
+   - baixar vídeos de preview para o tema (Skyscraper, no Linux);
+   - ~~esconder os controles virtuais~~ (feito no NetherSX2 e no RetroArch).
 4. **Fase 4, ROM própria**: compilar o LineageOS com o kernel, os scripts e os apps já incluídos, e gerar um pacote de instalação com guia simples. **Bloqueio atual:** o PC tem 8 GB de RAM e HD mecânico; compilar o LineageOS inteiro pede 16–32 GB de RAM e cerca de 300 GB, de preferência em SSD.
 
 ## Conteúdo do repositório

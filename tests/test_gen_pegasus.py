@@ -85,7 +85,32 @@ def test_device_games_keeps_existing_blocks():
     assert "launch:" not in extra and "Apagado" not in extra
 
 
+def test_dolphin_keeps_saf_uri():
+    rules = {"DOLPHIN": ["org.dolphinemu.dolphinemu/.ui.main.TvMainActivity"]}
+    cmd = mod.translate(
+        "%EMULATOR_DOLPHIN% %ACTION%=android.intent.action.MAIN "
+        "%CATEGORY%=android.intent.category.LEANBACK_LAUNCHER %EXTRA_AutoStartFile%=%ROMSAF%",
+        rules, {"org.dolphinemu.dolphinemu"}, "/storage/emulated/0/Games/gc")
+    assert "--es AutoStartFile '{file.uri}'" in cmd
+
+
+def test_parse_saf_grants():
+    dump = """ACTIVITY MANAGER URI PERMISSIONS (dumpsys activity permissions)
+  * UID 10075 holds:
+    UriPermission{1 content://com.android.externalstorage.documents/tree/primary%3AGames%2Fps2 [user 0]}
+      targetUserId=0 sourcePkg=com.android.externalstorage targetPkg=xyz.aethersx2.android
+      mode=0x3 owned=0x0 global=0x0 persistable=0x3 persisted=0x3
+    UriPermission{2 content://downloads/all_downloads/1 [user 0]}
+      targetUserId=0 sourcePkg=com.android.providers.downloads targetPkg=com.android.providers.settings
+      mode=0x3 owned=0x0 global=0x3 persistable=0x0 persisted=0x0
+"""
+    assert mod.parse_saf_grants(dump) == {
+        "xyz.aethersx2.android": {"content://com.android.externalstorage.documents/tree/primary:Games/ps2"}}
+
+
 if __name__ == "__main__":
+    test_dolphin_keeps_saf_uri()
+    test_parse_saf_grants()
     test_nether_bootpath_uses_daijisho_saf_uri()
     test_data_uses_saf_uri()
     test_parse_nether_gamelist()

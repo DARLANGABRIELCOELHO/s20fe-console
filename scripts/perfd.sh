@@ -28,6 +28,7 @@
 #   - CALAMIDADE (< 65% por 3 s, só PS2, uma vez por sessão): sai pelo menu do NetherSX2 (grava o
 #     .resume.p2s, via controller-hotkeys.sh), aplica 3 ajustes de uma vez e reabre o jogo com o
 #     mesmo comando do Pegasus, que carrega o estado (perda de ~1 s de jogo).
+#   - Ao abrir um jogo: fecha os apps em segundo plano que podem ser fechados (am kill-all).
 #   - NetherSX2 aberto em segundo plano sem jogo rodando (saiu pelo menu dele): fecha o processo,
 #     porque ele não abre um 2º jogo no mesmo processo (tela preta).
 # O controle térmico do Android (thermal-engine) continua sempre ativo; o assistente também
@@ -37,7 +38,7 @@
 # Log: /data/local/tmp/s20fe-perfd.log
 
 NETHER=xyz.aethersx2.android
-EMUS="$NETHER org.ppsspp.ppsspp com.retroarch dev.legacy.eden_emulator com.droiddeck.launcher"
+EMUS="$NETHER org.ppsspp.ppsspp com.retroarch org.dolphinemu.dolphinemu dev.legacy.eden_emulator com.droiddeck.launcher"
 GPU_MAX=625000000; GPU_BOOST=670000000; GPU_FLOOR=525000000
 HOT=88; COOL=78; BOOST_OK=80          # °C
 SLOW=85                                # % de velocidade: abaixo disto, uma ação por vez, na hora
@@ -264,6 +265,7 @@ game_start() {
     dumpsys SurfaceFlinger --timestats -enable -clear >/dev/null
     echo $CPU4_MIN_GAME > $C/policy4/scaling_min_freq; echo $CPU7_MIN_GAME > $C/policy7/scaling_min_freq
     echo $GPU_MAX > $K/max_gpuclk
+    am kill-all >/dev/null 2>&1   # libera RAM: só processos em segundo plano que podem ser fechados
     { echo "@uptime $(cut -d' ' -f1 /proc/uptime)"; thread_ticks $PID; } > $TICKS_FILE
     BASE=""; [ -n "$CRC" ] && BASE=$(state_get $CRC fps_base)
     if [ -z "$BASE" ]; then case "$SERIAL" in SLES*|SCES*) BASE=50;; *) BASE=60;; esac; fi

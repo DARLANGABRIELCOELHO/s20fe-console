@@ -8,9 +8,11 @@ Fluxo:
   3. para cada sistema com jogos, escolhe o primeiro comando do ES-DE cujo emulador está
      instalado (ou o preferido em --emu), traduz para "am start" e grava o metadata.pegasus.txt
      na pasta do sistema; atualiza o game_dirs.txt do Pegasus.
-  4. NetherSX2 (bootPath): grava um launch: por jogo com a URI SAF da pasta do sistema, para a
-     qual ele já tem permissão (ele não abre {file.path} nem a URI do provider do Pegasus).
-     Com o serial e o CRC do jogo (lidos do gamelist.cache do NetherSX2), grava também
+  4. Emuladores que recebem o jogo num extra com URI (NetherSX2 bootPath, Dolphin AutoStartFile):
+     grava um launch: por jogo com a URI SAF da pasta do sistema, que precisa estar liberada no
+     emulador (o gerador confere em 'dumpsys activity permissions' e avisa). Eles não abrem
+     {file.path} (scoped storage) nem a URI do provider do Pegasus.
+     NetherSX2: com o serial e o CRC do jogo (lidos do gamelist.cache do NetherSX2), grava também
      x-nethersx2-serial/-crc/-state e, se o <serial> (<CRC>).resume.p2s já existe, põe
      --es saveStatePath no launch: (o jogo abre onde parou). Sem o arquivo o NetherSX2 recusa o
      extra; o scripts/controller-hotkeys.sh inclui o extra quando o 1º estado é gravado.
@@ -22,6 +24,7 @@ Uso:
 """
 
 import argparse
+import re
 import shlex
 import struct
 import subprocess
@@ -103,6 +106,21 @@ def parse_nether_gamelist(data):
     except (struct.error, UnicodeDecodeError):
         pass  # formato inesperado: fica com o que já leu
     return games
+
+
+def parse_saf_grants(dump):
+    """Saída de 'dumpsys activity permissions' -> {pacote: {URI tree decodificada}} das permissões
+    SAF persistentes (as que o app ganha ao escolher uma pasta no seletor do Android)."""
+    found, uri, pkg = {}, None, None
+    for line in dump.splitlines():
+        line = line.strip()
+        if line.startswith("UriPermission{"):
+            uri = line.split()[1]
+        elif "targetPkg=" in line:
+            pkg = line.split("targetPkg=", 1)[1].split()[0]
+        elif "persisted=" in line and "persisted=0x0" not in line and uri and "/tree/" in uri:
+            found.setdefault(pkg, set()).add(unquote(uri))
+    return found
 
 
 def nether_state_path(serial, crc):
@@ -297,7 +315,8 @@ def translate(command, rules, installed, rompath, has_file=lambda path: True):
             kind, _, extra = key.strip("%").partition("_")
             if kind not in EXTRA_TYPES:
                 raise Unsupported(t)
-            if extra in ("AutoStartFile", "rom", "ROM") and "%ROMSAF%" in val:
+            # AutoStartFile (Dolphin) fica com a URI SAF: com targetSdk 36 ele não lê caminho bruto
+            if extra in ("rom", "ROM") and "%ROMSAF%" in val:
                 val = val.replace("%ROMSAF%", "%ROMRAW%")
             v = value(val, pkg, rompath)
             if v.endswith("_libretro_android.so") and not has_file(v):
@@ -348,25 +367,24 @@ def main():
     nether_cache = {}
 
     def nether_info():
-        """(jogos do gamelist.cache, pastas SAF liberadas, estados .resume.p2s existentes)."""
+        """(jogos do gamelist.cache, estados .resume.p2s existentes)."""
         if not nether_cache:
             games = parse_nether_gamelist(adb_su_bytes(
                 args.serial, f"cat {NETHER_DATA}/cache/gamelist.cache"))
-            prefs_xml = adb_su_bytes(
-                args.serial, f"cat {NETHER_DATA}/shared_prefs/{NETHER_PKG}_preferences.xml")
-            trees = set()
-            try:
-                for s in ET.fromstring(prefs_xml).iter("set"):
-                    if s.get("name") == "GameList/RecursivePaths":
-                        trees = {unquote(e.text or "") for e in s.iter("string")}
-            except ET.ParseError:
-                pass
             # find, não ls: o ls do Android escapa os espaços ("SLUS-21376\ (5C891FF1)...")
             states = {l.rsplit("/", 1)[-1] for l in adb_su_bytes(
                 args.serial, f"find {NETHER_STATES} -maxdepth 1 -type f")
                 .decode("utf-8", "replace").splitlines()}
-            nether_cache.update(games=games, trees=trees, states=states)
-        return nether_cache["games"], nether_cache["trees"], nether_cache["states"]
+            nether_cache.update(games=games, states=states)
+        return nether_cache["games"], nether_cache["states"]
+
+    grants = {}
+
+    def saf_grants():
+        """{pacote: pastas SAF (URIs tree decodificadas) com permissão persistente}."""
+        if not grants:
+            grants.update(parse_saf_grants(adb(args.serial, "shell", "dumpsys", "activity", "permissions")))
+        return grants
 
     rules, systems = load_find_rules(), load_systems()
     by_name = {s["name"]: s for s in systems}
@@ -415,14 +433,18 @@ def main():
                 current = adb(args.serial, "shell", f"cat '{path}/metadata.pegasus.txt' 2>/dev/null")
                 extra = device_games(current, games)
             scraped = extra.count("\ngame: ") + extra.startswith("game: ")
-            if "--es bootPath '{file.uri}'" in launch:
-                nether_games, trees, states = nether_info()
+            if re.search(r"--es \S+ '\{file\.uri\}'", launch):
+                # extra com URI: o {file.uri} do Pegasus é do provider dele (outros apps não abrem);
+                # vai uma URI SAF por jogo, dentro da pasta liberada no emulador
+                pkg = launch.split(" -n ", 1)[1].split("/", 1)[0]
                 tree_id = unquote(android_document_uri(path, "x").split("/document/")[0])
-                if tree_id not in trees:
-                    print(f"   AVISO: o NetherSX2 não tem permissão para {path}; adicione a pasta "
-                          f"na lista de jogos dele, senão os jogos daqui não abrem")
+                if tree_id not in saf_grants().get(pkg, set()):
+                    print(f"   AVISO: {pkg} não tem permissão (SAF) para {path}; adicione a pasta "
+                          f"na lista de jogos do emulador, senão os jogos daqui não abrem")
+                is_nether = pkg == NETHER_PKG
+                nether_games, states = nether_info() if is_nether else ({}, set())
 
-                def nether_launch(filename):
+                def game_launch(filename):
                     uri = android_document_uri(path, filename)
                     cmd = launch.replace("'{file.uri}'", shlex.quote(uri))
                     serial, crc = nether_games.get(unquote(uri), (None, None))
@@ -432,6 +454,8 @@ def main():
                     return cmd
 
                 def nether_fields(filename):
+                    if not is_nether:
+                        return []
                     serial, crc = nether_games.get(
                         unquote(android_document_uri(path, filename)), (None, None))
                     if not serial:
@@ -441,7 +465,7 @@ def main():
                     return [f"x-nethersx2-serial: {serial}", f"x-nethersx2-crc: {crc}",
                             f"x-nethersx2-state: {nether_state_path(serial, crc)}"]
 
-                extra = add_game_launches(extra, games, nether_launch, nether_fields)
+                extra = add_game_launches(extra, games, game_launch, nether_fields)
             meta += extra
             print(f"OK {path}: {len(games)} jogos ({scraped} com capa/dados) -> {label}\n   {launch}")
             dirs.append(path)
