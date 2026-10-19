@@ -10,7 +10,9 @@
 #     "Thread-2" = auxiliares do GS)
 #   - clocks e temperaturas
 # Só considera "lento" quando o FPS está baixo E o thread mais pesado da emulação está
-# trabalhando (em menus/carregamento o FPS cai, mas a emulação está a 100% com os threads parados).
+# trabalhando (em menus/carregamento o FPS cai, mas a emulação está a 100% com os threads parados)
+# OU a GPU está acima de 80% de uso (gargalo gráfico: os threads ficam esperando a GPU, com pouco
+# uso de CPU; visto em 2026-10-19 com o Guitar Hero forçado a 6x: 20% de velocidade, GPU 99%).
 #
 # Ações:
 #   - Imediatas, a cada 0,5 s: < 85% sobe um degrau por vez; < 75% aplica todos de uma vez:
@@ -45,6 +47,7 @@ SLOW=85                                # % de velocidade: abaixo disto, uma aç�
 VSLOW=75                               # abaixo disto: todas as ações de uma vez (e 2 ajustes por abertura)
 CALAM=65                               # "calamidade": reinicia o jogo com 3 ajustes (carrega o estado)
 BUSY=45                                # % de CPU do thread mais pesado para considerar "em jogo"
+GPU_BUSY=80                            # ... ou % de uso da GPU (gargalo gráfico: os threads ficam esperando)
 CPU4_MIN_GAME=1670400; CPU7_MIN_GAME=1862400
 K=/sys/class/kgsl/kgsl-3d0; T=/sys/class/thermal; C=/sys/devices/system/cpu/cpufreq
 OUT=/storage/emulated/0/Games/.perf; LOG=/data/local/tmp/s20fe-perfd.log
@@ -58,7 +61,9 @@ DEF_MINPL=6                            # piso padrão da GPU (nível 6 = 400 MHz
 # na ordem). EE Cycle Rate negativo = menos ciclos do EE (mais rápido; pode deixar o jogo lento
 # por dentro); EE Cycle Skip pula ciclos; blending mínimo alivia o GS. Valores do PCSX2.
 CPU_STEPS='EmuCore/Speedhacks:EECycleSkip=1 EmuCore/Speedhacks:EECycleRate=-1 EmuCore/GS:accurate_blending_unit=0 EmuCore/Speedhacks:EECycleSkip=2 EmuCore/Speedhacks:EECycleRate=-2'
-GFX_STEPS='EmuCore/GS:accurate_blending_unit=0 EmuCore/Speedhacks:EECycleSkip=1 EmuCore/Speedhacks:EECycleRate=-1 EmuCore/Speedhacks:EECycleSkip=2 EmuCore/Speedhacks:EECycleRate=-2'
+# O padrão global do NetherSX2 é 2x (upscale_multiplier, desde 2026-10-19): no gargalo gráfico, o
+# 1º passo é voltar o jogo para a resolução original (1x).
+GFX_STEPS='EmuCore/GS:upscale_multiplier=1 EmuCore/GS:accurate_blending_unit=0 EmuCore/Speedhacks:EECycleSkip=1 EmuCore/Speedhacks:EECycleRate=-1 EmuCore/Speedhacks:EECycleSkip=2 EmuCore/Speedhacks:EECycleRate=-2'
 
 log() { echo "$(date '+%F %T') $*" >> $LOG; }
 ajuste() { echo "$(date '+%F %T') | $*" >> $OUT/ajustes.txt; log "ajuste: $*"; }
@@ -213,18 +218,23 @@ tune_apply() {
     ajuste "$s ($GAME): velocidade $4% (gargalo $2) -> aplicado $applied (antes: $prevs)"
     return 0
 }
-gargalo() { case "$1" in "CPU Thread"|MTVU) echo cpu;; *) echo gfx;; esac; }
+# gargalo: $1 = thread mais pesado, $2 = uso médio da GPU (%). GPU >= 80% é gráfico mesmo que o
+# thread mais pesado seja o do EE (ele fica esperando a GPU).
+gargalo() {
+    [ "${2:-0}" -ge 80 ] 2>/dev/null && { echo gfx; return; }
+    case "$1" in "CPU Thread"|MTVU) echo cpu;; *) echo gfx;; esac
+}
 # há ajuste ainda não tentado na escada do gargalo atual?
 cal_has_steps() {
-    case "$(gargalo "$bname")" in gfx) st_list=$GFX_STEPS;; *) st_list=$CPU_STEPS;; esac
+    case "$(gargalo "$bname" "$gb")" in gfx) st_list=$GFX_STEPS;; *) st_list=$CPU_STEPS;; esac
     tried="$(state_get $CRC tentados) $(state_get $CRC ruins)"
     for st in $st_list; do case " $tried " in *" $st "*) ;; *) return 0;; esac; done
     return 1
 }
 # calamidade: sai salvando pelo menu, aplica 3 ajustes e reabre o jogo (carrega o .resume.p2s)
 calamity_restart() {
-    g=$(gargalo "$bname")
-    v=$(awk -F, -v busy=$BUSY 'NR>1 && $7>=busy { n++; t+=$5 } END { if (n) printf "%d", t/n }' "$SESSION")
+    g=$(gargalo "$bname" "$gb")
+    v=$(awk -F, -v busy=$BUSY -v gbusy=$GPU_BUSY 'NR>1 && ($7>=busy || $9>=gbusy) { n++; t+=$5 } END { if (n) printf "%d", t/n }' "$SESSION")
     sh "$HOTKEYS" action nether-exit
     if [ $? = 1 ]; then ajuste "$CRC: CALAMIDADE (${vel}%) mas não consegui salvar e sair; nada feito"; return; fi
     if tune_apply $CRC $g 3 "${v:-$vel}"; then
@@ -279,19 +289,19 @@ game_stop() {
     echo $GPU_MAX > $K/max_gpuclk
     dumpsys SurfaceFlinger --timestats -disable >/dev/null
     # resumo só das amostras "em jogo" (thread mais pesado trabalhando)
-    res=$(awk -F, -v busy=$BUSY 'NR>1 && $7>=busy && $5!="" { n++; v+=$5; if (min=="" || $5+0<min) min=$5+0; if ($5<85) low++
-            g[$6]++; if ($10>tg) tg=$10; if ($12>tb) tb=$12 }
+    res=$(awk -F, -v busy=$BUSY -v gbusy=$GPU_BUSY 'NR>1 && ($7>=busy || $9>=gbusy) && $5!="" { n++; v+=$5; if (min=="" || $5+0<min) min=$5+0; if ($5<85) low++
+            g[$6]++; if ($10+0>tg) tg=$10+0; if ($12+0>tb) tb=$12+0; gb+=$9 }
         END { if (!n) { print "0"; exit }
             for (k in g) if (g[k]>gm) { gm=g[k]; gk=k }
-            printf "%d %d %d %d %d %s\n", v/n, min, 100*low/n, tg, tb, gk }' "$SESSION")
-    echo "$res" > $TICKS_FILE.r; read vel pior abaixo tg tb garg < $TICKS_FILE.r
+            printf "%d %d %d %d %d %d %s\n", v/n, min, 100*low/n, tg, tb, gb/n, gk }' "$SESSION")
+    echo "$res" > $TICKS_FILE.r; read vel pior abaixo tg tb gpu garg < $TICKS_FILE.r
     if [ -n "$vel" ] && [ "$vel" != 0 ] && [ -n "$tb" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M') | $PKG | $GAME | velocidade média ${vel}% (pior ${pior}%, ${abaixo}% do tempo abaixo de 85%) | thread mais pesado: $garg | máx GPU ${tg}°C bateria ${tb}°C" >> $OUT/resumo.txt
+        echo "$(date '+%Y-%m-%d %H:%M') | $PKG | $GAME | velocidade média ${vel}% (pior ${pior}%, ${abaixo}% do tempo abaixo de 85%) | thread mais pesado: $garg | GPU ${gpu}% de uso | máx GPU ${tg}°C bateria ${tb}°C" >> $OUT/resumo.txt
         if [ -n "$CRC" ]; then
             state_set $CRC ultima_vel $vel
             [ "$MAXFPS" -ge 55 ] && state_set $CRC fps_base 60
             if [ "$vel" -lt 95 ]; then
-                state_set $CRC pendente $(gargalo "$garg")
+                state_set $CRC pendente $(gargalo "$garg" "$gpu")
             elif [ "$(state_get $CRC avaliado)" = 0 ]; then
                 state_set $CRC pendente nenhum   # só avaliar o último ajuste
             fi
@@ -331,6 +341,7 @@ while true; do
         fps=$(fps_now "$PKG"); [ -n "$fps" ] || fps=0
         [ "$fps" -gt "$MAXFPS" ] && MAXFPS=$fps
         busiest > $TICKS_FILE.b; read bpct btid bname < $TICKS_FILE.b; bpct=${bpct:-0}
+        gb=$(cat $K/gpu_busy_percentage | tr -d " %"); gb=${gb:-0}
         vel1=$(( fps * 100 / BASE )); [ $vel1 -gt 100 ] && vel1=100
         vel=$(( (vel1 + ${PREV:-$vel1}) / 2 )); PREV=$vel1     # média do último segundo
         tg=$(temp thermal_zone15); tc=$(temp thermal_zone7); tb=$(temp thermal_zone84)
@@ -339,7 +350,7 @@ while true; do
             echo $DEF_MINPL > $K/min_pwrlevel; FLOOR=$DEF_MINPL       # solta o piso antes de baixar o teto
             n=$(next_level $gmax down); echo $n > $K/max_gpuclk; acao="GPU quente: piso solto, teto $((n/1000000))"
         fi
-        if [ $vel -lt $SLOW ] && [ "$bpct" -ge $BUSY ]; then
+        if [ $vel -lt $SLOW ] && { [ "$bpct" -ge $BUSY ] || [ "$gb" -ge $GPU_BUSY ]; }; then
             OK=0; from=$((LEVEL + 1))
             if [ $vel -lt $VSLOW ]; then LEVEL=5; else LEVEL=$((LEVEL + 1)); fi   # <75%: tudo de uma vez
             pin_heaviest "$btid"; acao="$acao lento ${vel}%: '$bname' no núcleo principal"
@@ -366,7 +377,7 @@ while true; do
         fi
         # calamidade (só PS2/NetherSX2, uma vez por sessão): < 65% por 3 s
         if [ "$PKG" = $NETHER ] && [ -n "$CRC" ] && [ $CAL_DONE = 0 ]; then
-            if [ $vel -lt $CALAM ] && [ "$bpct" -ge $BUSY ]; then CALN=$((CALN + 1)); else CALN=0; fi
+            if [ $vel -lt $CALAM ] && { [ "$bpct" -ge $BUSY ] || [ "$gb" -ge $GPU_BUSY ]; }; then CALN=$((CALN + 1)); else CALN=0; fi
             if [ $CALN -ge 6 ]; then
                 CAL_DONE=1
                 if cal_has_steps; then
