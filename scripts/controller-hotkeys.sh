@@ -2,7 +2,8 @@
 # s20fe: atalhos iguais para qualquer controle (roda como root pelo Magisk, service.d).
 #   Select + Start                    -> fecha o jogo atual (salvando o estado) e volta ao Pegasus
 #   L1 + R1 (segurados) + Select+Start -> abre o menu/configurações do emulador (o jogo continua)
-#   Botão PS / Home / Guide           -> "desliga" (fecha o jogo salvando, apaga a tela) e liga de
+#   Botão PS / Home / Guide (BUTTON_MODE ou HOME, de qualquer interface do controle)
+#                                     -> "desliga" (fecha o jogo salvando, apaga a tela) e liga de
 #                                        novo; com a tela apagada, qualquer botão também liga. Ao
 #                                        ligar, o perfis.sh mostra a escolha de perfil
 # Antes de fechar, salva o estado do jogo do jeito de cada emulador (PPSSPP: tecla F2 mapeada para
@@ -180,15 +181,57 @@ action() {
     esac
 }
 
-# "caminho arquivo.kl" de cada dispositivo que o Android classifica como GAMEPAD
+# "caminho arquivo.kl controle vendor product" de cada dispositivo que o Android classifica como
+# GAMEPAD e das outras interfaces do mesmo controle (mesmo SysfsDevicePath): muitos controles
+# Bluetooth mandam o botão Home por uma interface "Consumer Control" separada (ex.: GameSir T3s em
+# modo Apple: KEY_HOMEPAGE no event10, botões no event11).
 build_map() {
     dumpsys input | awk '
-        /^ +[0-9]+: / { path = ""; pad = 0 }
-        /Classes:/ && /GAMEPAD/ { pad = 1 }
-        /Path:/ { path = $2 }
-        /KeyLayoutFile:/ { if (pad && path != "") print path, $2 }
+        function flush() {
+            if (path != "") { n++; P[n] = path; K[n] = kl; S[n] = sys; G[n] = pad; E[n] = ext; V[n] = ven; D[n] = prod }
+            path = kl = sys = ven = prod = ""; pad = ext = 0
+        }
+        /^  Devices:/ { on = 1; next }
+        on && /^  [^ ]/ { flush(); on = 0 }
+        !on { next }
+        /^    [0-9]+: / { flush() }
+        /Classes:/ { pad = ($0 ~ /GAMEPAD/); ext = ($0 ~ /EXTERNAL/) }
+        /^ +Path:/ { path = $2 }
+        /Identifier:/ {
+            if (match($0, /vendor=0x[0-9a-f]+/)) ven = substr($0, RSTART + 9, RLENGTH - 9)
+            if (match($0, /product=0x[0-9a-f]+/)) prod = substr($0, RSTART + 10, RLENGTH - 10)
+        }
+        /KeyLayoutFile:/ { kl = $2 }
+        /SysfsDevicePath:/ { sys = $2 }
+        END {
+            flush()
+            for (i = 1; i <= n; i++) if (G[i] && S[i] != "<none>") pads[S[i]] = 1
+            for (i = 1; i <= n; i++)
+                if (K[i] != "" && (G[i] || (E[i] && (S[i] in pads))))
+                    print P[i], K[i], (S[i] == "<none>" ? P[i] : S[i]), V[i], D[i]
+        }
     ' > $MAP
     ls /dev/input/event* > $MAP.all
+}
+
+# Controles sem mapa próprio usam o Generic.kl, que transforma o Home do controle (KEY_HOMEPAGE)
+# em HOME do Android: o sistema vai ao Pegasus antes de o jogo ser salvo. Para eles, cria em
+# /data/system/devices/keylayout/ (pasta de mapas do usuário, lida pelo Android quando não há mapa
+# do fabricante no sistema) uma cópia do Generic.kl com HOME -> BUTTON_MODE, como o botão PS do
+# DualShock. Vale a partir da próxima conexão do controle. Para desfazer: apagar o arquivo.
+KL_DIR=/data/system/devices/keylayout
+fix_home_layout() {
+    while read -r path kl grp ven prod; do
+        [ "$kl" = /system/usr/keylayout/Generic.kl ] && [ -n "$ven" ] && [ -n "$prod" ] || continue
+        f=$KL_DIR/Vendor_${ven}_Product_${prod}.kl
+        [ -f "$f" ] && continue
+        mkdir -p $KL_DIR && chown system:system /data/system/devices $KL_DIR &&
+            chmod 755 /data/system/devices $KL_DIR || return
+        sed -E 's/^(key[ \t]+172[ \t]+)HOME([ \t]|$)/\1BUTTON_MODE\2/' "$kl" > "$f.tmp" &&
+            mv "$f.tmp" "$f" && chown system:system "$f" && chmod 644 "$f" &&
+            restorecon -R /data/system/devices
+        log "mapa criado: $f (Home do controle -> BUTTON_MODE); vale ao reconectar o controle"
+    done < $MAP
 }
 
 if [ "$1" = action ]; then action "$2"; exit; fi
@@ -198,6 +241,7 @@ log "iniciado"
 first=1
 while true; do
     build_map
+    fix_home_layout
     log "controles: $(tr '\n' ';' < $MAP)"
     # controle novo (fora do boot): reiniciar o Pegasus para ele enxergar todos os botões
     new=$(cut -d' ' -f1 $MAP | sort)
@@ -213,6 +257,7 @@ while true; do
             close(map ".all")
             while ((getline line < map) > 0) {
                 split(line, f, " "); dev = f[1]
+                grp[dev] = f[3]                 # interfaces do mesmo controle contam juntas
                 while ((getline kl < f[2]) > 0) {
                     n = split(kl, k, /[ \t]+/)
                     if (k[1] != "key" || k[2] == "usage") continue
@@ -223,7 +268,7 @@ while true; do
                     else if (k[3] == "BUTTON_START") role = "T"
                     else if (k[3] == "BUTTON_L1") role = "L"
                     else if (k[3] == "BUTTON_R1") role = "R"
-                    else if (k[3] == "BUTTON_MODE") role = "P"
+                    else if (k[3] == "BUTTON_MODE" || k[3] == "HOME") role = "P"
                     if (role != "") roles[dev SUBSEP code] = role
                 }
                 close(f[2])
@@ -235,15 +280,15 @@ while true; do
         /^\/dev\/input\/event/ {
             dev = $1; sub(/:$/, "", dev)
             if ($2 != "0001" || !((dev SUBSEP $3) in roles)) next
-            r = roles[dev SUBSEP $3]
-            down[dev, r] = ($4 != "00000000")      # 1 = apertou, 2 = repetição, 0 = soltou
+            r = roles[dev SUBSEP $3]; g = grp[dev]
+            down[g, r] = ($4 != "00000000")        # 1 = apertou, 2 = repetição, 0 = soltou
             if (r == "P") { if ($4 == "00000001") system("sh " self " action power"); next }
-            both = down[dev, "S"] && down[dev, "T"]
-            if (both && !fired[dev]) {
-                fired[dev] = 1
-                a = (down[dev, "L"] && down[dev, "R"]) ? "menu" : "close"
+            both = down[g, "S"] && down[g, "T"]
+            if (both && !fired[g]) {
+                fired[g] = 1
+                a = (down[g, "L"] && down[g, "R"]) ? "menu" : "close"
                 system("sh " self " action " a)
-            } else if (!both) fired[dev] = 0
+            } else if (!both) fired[g] = 0
         }
     '
     sleep 2
