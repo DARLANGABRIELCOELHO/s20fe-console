@@ -263,6 +263,8 @@ Procedimento conferido na fonte da wiki (github.com/LineageOS/lineage_wiki, `_da
 O ROCKNIX (estilo Batocera) já roda no SD865 (Retroid Pocket 5). Existe Linux mainline bootando no r8q (github.com/Itzkristis/r8q-arch). Portar só depois que o Caminho 1 estiver pronto. O ponto crítico a testar é a saída de vídeo pela USB-C.
 
 ## Hardware do console
+- Levantamento do interior, opções de dissipação, case e protocolo de medição: `hardware/README.md` (2026-10-20). Achado principal: sem a tampa traseira, o que aparece é a **tampa plástica da placa-mãe** (carga sem fio + NFC + módulo de antena, com grafite), não a blindagem; ela segura os conectores de pressão (bateria). A pasta térmica fica no lado da tela → o calor sai principalmente pelo chassi/tela.
+- **Medição térmica** (2026-10-20): `tools/thermal-test.sh start <rótulo> [min] [670]` inicia `scripts/thermlog.sh` no celular (roda sozinho, dá para passar o celular para o hub), `pull` baixa o CSV para `hardware/medicoes/` e resume com `tools/thermsum.py`. Ordem dos testes: Base → A1 traseira → A2 frente → A3 duas faces → B/C só se precisar. Pré-requisitos: 3DMark (Aurora) e fonte PD que o hub repasse com 9 V (o ZEN1 deu só 5 V/1,5 A e a bateria descarregava).
 - Hub USB-C com HDMI + entrada de carga PD (25 W ou mais).
 - Tampa traseira removida. Dissipador + cooler de CPU direto na blindagem metálica, com thermal pad de 1–1,5 mm. Ventoinha 5 V alimentada pelo hub, ou 12 V com fonte separada. Sem Peltier (condensação).
 - Case com entrada e saída de ar, acesso à USB-C e ao botão power.
