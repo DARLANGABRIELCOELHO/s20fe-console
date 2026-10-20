@@ -47,6 +47,14 @@ Z_GPU0=$(zone gpuss-0-usr); Z_GPU1=$(zone gpuss-1-usr)
 Z_DDR=$(zone ddr-usr); Z_PELE=$(zone modem-skin-usr); Z_AMB=$(zone modem-ambient-usr)
 Z_USB=$(zone usb-therm); Z_AC=$(zone ac)
 
+# ventoinha (scripts/fanctl.sh): "<epoch> <pedido> <aplicado> <rpm> <dissipador> <pico> <modo>";
+# vazio se o arquivo tiver mais de 10 s (serviço parado ou Pico desligado)
+FAN=$RUN/s20fe-fan.txt
+fan() {
+    [ -f $FAN ] && read ts _p ap rpm dis _t modo < $FAN && [ $(( $(date +%s) - ts )) -le 10 ] \
+        && echo "$ap,${rpm#-},${dis#-},$modo" || echo ",,,"
+}
+
 taskset -p 0f $$ >/dev/null 2>&1      # fica nos núcleos pequenos, longe da carga do teste
 
 mkdir -p $OUT
@@ -63,7 +71,7 @@ trap 'restore; exit 0' TERM INT
 
 {
     echo "# rotulo=$LABEL inicio=$(date '+%F %T') minutos=$MIN gpu_max=$(( $(cat $K/max_gpuclk) / 1000000 )) kernel=$(uname -r)"
-    echo "seg,gpu_mhz,gpu_busy,gpu_max,cpu0_mhz,cpu4_mhz,cpu7_mhz,t_cpu0,t_cpu1,t_gpu0,t_gpu1,t_ddr,t_pele,t_amb,t_usb,t_ac,t_bat,bat_pct,bat_ma,bat_mv,status,tela,brilho,tv"
+    echo "seg,gpu_mhz,gpu_busy,gpu_max,cpu0_mhz,cpu4_mhz,cpu7_mhz,t_cpu0,t_cpu1,t_gpu0,t_gpu1,t_ddr,t_pele,t_amb,t_usb,t_ac,t_bat,bat_pct,bat_ma,bat_mv,status,tela,brilho,tv,fan_pct,fan_rpm,t_dissip,fan_modo"
 } > "$CSV"
 
 start=$(cut -d. -f1 /proc/uptime)
@@ -71,7 +79,7 @@ end=$((start + MIN * 60))
 while :; do
     now=$(cut -d. -f1 /proc/uptime)
     [ $now -ge $end ] || [ -f $RUN/thermlog.stop ] && break
-    echo "$((now - start)),$(ghz $K/gpuclk),$(cat $K/gpu_busy_percentage | tr -d ' %'),$(ghz $K/max_gpuclk),$(mhz $CPU/policy0/scaling_cur_freq),$(mhz $CPU/policy4/scaling_cur_freq),$(mhz $CPU/policy7/scaling_cur_freq),$(c $Z_CPU0),$(c $Z_CPU1),$(c $Z_GPU0),$(c $Z_GPU1),$(c $Z_DDR),$(c $Z_PELE),$(c $Z_AMB),$(c $Z_USB),$(c $Z_AC),$(echo "$(cat $B/temp)" | sed 's/.$/.&/'),$(cat $B/capacity),$(( $(cat $B/current_now) / 1000 )),$(( $(cat $B/voltage_now) / 1000 )),$(cat $B/status),$(cat /sys/class/drm/card0-DSI-1/dpms),$(cat /sys/class/backlight/panel0-backlight/brightness 2>/dev/null),$(cat /sys/class/drm/card0-DP-1/status)" >> "$CSV"
+    echo "$((now - start)),$(ghz $K/gpuclk),$(cat $K/gpu_busy_percentage | tr -d ' %'),$(ghz $K/max_gpuclk),$(mhz $CPU/policy0/scaling_cur_freq),$(mhz $CPU/policy4/scaling_cur_freq),$(mhz $CPU/policy7/scaling_cur_freq),$(c $Z_CPU0),$(c $Z_CPU1),$(c $Z_GPU0),$(c $Z_GPU1),$(c $Z_DDR),$(c $Z_PELE),$(c $Z_AMB),$(c $Z_USB),$(c $Z_AC),$(echo "$(cat $B/temp)" | sed 's/.$/.&/'),$(cat $B/capacity),$(( $(cat $B/current_now) / 1000 )),$(( $(cat $B/voltage_now) / 1000 )),$(cat $B/status),$(cat /sys/class/drm/card0-DSI-1/dpms),$(cat /sys/class/backlight/panel0-backlight/brightness 2>/dev/null),$(cat /sys/class/drm/card0-DP-1/status),$(fan)" >> "$CSV"
     sleep $INTERVAL
 done
 echo "# fim=$(date '+%F %T')" >> "$CSV"

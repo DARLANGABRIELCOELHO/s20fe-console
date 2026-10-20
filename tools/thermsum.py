@@ -102,6 +102,15 @@ def main():
           f"{carga[-1]['bat_pct']}%; corrente média {ma_med:+.0f} mA "
           f"({'carregando' if ma_med > 0 else 'DESCARREGANDO'})")
 
+    fans = [num(r.get("fan_pct")) for r in carga if num(r.get("fan_pct")) is not None]
+    if fans:
+        dis = [num(r["t_dissip"]) for r in carga if num(r.get("t_dissip")) is not None]
+        rpms = [num(r["fan_rpm"]) for r in carga if num(r.get("fan_rpm")) is not None]
+        print(f"Ventoinha: média {sum(fans) / len(fans):.0f}%, máx. {max(fans):.0f}% "
+              f"({100 * len(fans) / len(carga):.0f}% das amostras com o Pico respondendo)"
+              + (f"; rpm máx. {max(rpms):.0f}" if rpms else "")
+              + (f"; dissipador pico {max(dis):.1f} °C" if dis else ""))
+
     ok_tempo = t_carga >= 30 * 60
     ok_gpu = max(gpus) < META_GPU
     ok_bat = max(bats) < META_BAT

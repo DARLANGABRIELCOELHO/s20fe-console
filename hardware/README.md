@@ -126,6 +126,49 @@ Fontes de energia em `/sys/class/power_supply/`: `max77705-charger`, `max77705-f
   O ganho vem do ar passando pela frente (opção A) e de **gerar menos calor**: na TV, deixar a
   tela do celular no brilho mínimo ou apagada (ver seção 6).
 
+### E. Placa-mãe fora do chassi *(ideia do usuário, 2026-10-20; em avaliação)*
+Tirar a placa-mãe do chassi intermediário e montá-la no case, com o dissipador **direto na
+blindagem do SoC** (lado da tela, onde está a pasta térmica, seção 2). É o único jeito de o
+dissipador tocar o chip sem plástico nem grafite no meio: a meta da seção 3 passa a ser fácil.
+- **Dissipador:** com contato direto, o cobre 5 × 5 cm + ventoinha já sobra para 6–9 W. O cooler
+  de PC (ex.: Rise Mode X2, 95 W) também serve, mas preso no case com pressão leve e
+  **nunca pendurado na placa** (placa de 0,8 mm + conectores de pressão). Pad ou pasta conforme a
+  folga medida; a blindagem é GND, mas nenhum metal pode tocar componentes fora dela.
+- **Tela não é necessária:** o usuário confirmou (2026-10-20) que o aparelho funciona sem a
+  tela conectada.
+- **O que precisa continuar ligado** (cabos flexíveis curtos, de 2 a 5 cm): bateria (o carregador da
+  Samsung não liga sem ela e sem o termistor dela), subplaca USB-C (cabo flexível principal),
+  botão power/volume (flex no chassi; sem ele, o celular só liga se a carga der boot direto, o
+  que exige mexer no modo de carga desligado).
+- **Antenas — maior risco:** as bordas metálicas do chassi são antenas, ligadas à placa por
+  molas de contato, e a parte de cima da tampa da carga sem fio é um módulo de antena. Fora do
+  chassi, **Wi-Fi e Bluetooth dos controles podem cair muito**. Teste antes de qualquer coisa:
+  RSSI do Wi-Fi (`dumpsys wifi`) e alcance dos controles BT com a placa apenas levantada.
+- **Ganho extra:** a bateria e a tela deixam de receber o calor do SoC.
+- **Contras:** difícil de reverter, risco de rasgar flex e de descarga eletrostática (pulseira
+  antiestática), e foge do "plug and play" (cada usuário teria que desmontar o aparelho).
+- Ordem: medir antes a opção A (ventoinha) — se já bater a meta, E não é necessária. Antes de
+  abrir: fotos dos dois lados da placa e medir o comprimento de cada flex (seção 8).
+
+### F. Sem a tela, placa no chassi, dissipador no chassi *(recomendado para o case novo)*
+Como o aparelho funciona sem a tela, o chassi intermediário (a placa de metal entre a placa-mãe
+e a tela) pode virar o **espalhador de calor**: a blindagem do SoC já encosta nele com pasta
+térmica (seção 2). Sem a tela, a face da frente do chassi fica exposta, e o dissipador vai ali,
+logo à frente do SoC.
+- **Mantém tudo que a opção E arrisca:** antenas nas bordas do chassi, botões, bateria colada,
+  subplaca USB-C e os cabos flexíveis nos lugares originais. Nenhum flex fica esticado.
+- **Contato:** tirar a tela também tira a folha de cobre/grafite colada atrás dela; limpar a
+  cola, achar o ponto em frente ao SoC (marcar pela posição da blindagem vista de trás) e usar
+  pasta térmica (superfície plana) ou pad de 0,5–1 mm. O chassi é de alumínio/magnésio e
+  conduz bem; o dissipador cobre uma área grande dele, então o cobre 5 × 5 cm já ajuda muito, e
+  um dissipador maior (ex.: o do Rise Mode, preso no case) melhor ainda.
+- **Tirar a tela do S20 FE em geral a destrói** (AMOLED colado, solto com calor). Guardar o
+  aparelho de emergência sem tela: recovery e modo Download continuam funcionando às cegas e
+  pelo adb/scrcpy, mas um problema que só aparece na tela fica mais difícil de diagnosticar.
+  **Decisão do usuário.**
+- A traseira (tampa da placa-mãe) continua no lugar, segurando os conectores; recebe ar da
+  mesma ventoinha.
+
 ### Descartado por enquanto
 - **Peltier**: condensação (já decidido).
 - **Tirar a bateria** (alimentar direto): exige esquema, simular termistor/medidor de carga;
@@ -149,8 +192,7 @@ ao hub, ar entrando por baixo e saindo por cima (efeito chaminé + ventoinha).
 
 - Tela do celular no brilho mínimo, ou apagada, enquanto espelha na TV *(a investigar)*.
 - Tela já travada em 60 Hz (feito em 2026-10-19).
-- Ventoinha controlada pela temperatura: só se a ventoinha tiver PWM e houver como comandá-la
-  (ex.: um microcontrolador USB lendo a temperatura pelo adb). Ideia para depois.
+- Ventoinha controlada pela temperatura: **Raspberry Pi Pico 2 + `scripts/fanctl.sh`**, seção 10.
 
 ## 7. Protocolo de medição (igual para toda mudança)
 
@@ -188,10 +230,13 @@ compara com a meta da seção 3 e imprime a linha para a tabela abaixo.
 
 **Ordem dos testes:**
 1. **Base:** celular em pé, sem ventoinha, 670 MHz. Referência para todo o resto.
-2. **A1:** ventoinha soprando a **traseira** (tampa da placa-mãe).
+2. **A1:** ventoinha soprando a **traseira** (tampa da placa-mãe). Com o Pico (seção 10), fixar a
+   velocidade em todos os testes A/B (`fanctl.sh fixo 100`) para comparar só a montagem; a curva
+   automática fica para o fim.
 3. **A2:** ventoinha soprando a **frente** (tela) — o caminho principal do calor, pela seção 2.
 4. **A3:** ar nas duas faces (duas ventoinhas, ou uma com o celular em pé no meio do fluxo).
-5. Só se A3 não atingir a meta: **B** (dissipador sobre a tampa) e depois **C**.
+5. **B:** dissipador de cobre sobre a tampa + ventoinha (seção 10). Depois **C**, só se ainda
+   faltar.
 
 | Data | Configuração | Sala | GPU méd./pico | Bateria | Estabilidade | Obs. |
 |---|---|---|---|---|---|---|
@@ -212,7 +257,10 @@ compara com a meta da seção 3 e imprime a linha para a tabela abaixo.
       `tools/thermsum.py`), testados no aparelho em 2026-10-20 (sem carga).
 - [ ] Reinstalar o 3DMark (Aurora) e conseguir uma fonte PD que o hub repasse com 9 V.
 - [ ] Testes Base, A1, A2, A3 com o protocolo da seção 7.
-- [ ] Teste de antena: Wi-Fi/BT com e sem a tampa da placa-mãe.
+- [ ] Teste de antena: Wi-Fi/BT com e sem a tampa da placa-mãe (e com o dissipador de cobre).
+- [x] Firmware do Pico 2 e serviço `fanctl.sh` (2026-10-20). Serviço instalado no celular,
+      curva testada com temperaturas simuladas. **Falta:** montar o circuito, gravar o
+      CircuitPython e testar com o Pico de verdade (seção 10).
 
 ## 9. Ideia: hub integrado no lugar da subplaca USB-C
 
@@ -296,3 +344,201 @@ mais difícil e mais arriscado do projeto (erro na pinagem ou no VBUS = placa-m�
   existir): fotos dos dois lados + continuidade com multímetro do conector do cabo flexível até
   os pinos do USB-C (pinagem do USB-C é padrão). Dá a pinagem parcial sem esquema e sem risco.
 - **C:** com o esquema do **SM-G780G** (não o do G781B) + B, desenhar a placa própria.
+
+## 10. Resfriamento ativo: Pico 2 + ventoinha 80 mm + dissipador de cobre (2026-10-20)
+
+Material do usuário: **Raspberry Pi Pico 2** (RP2350), **dissipador de cobre 5 × 5 cm**,
+**ventoinha 80 mm 12 V 0,1 A de 2 fios** (vermelho +, preto −; sem sensor de rotação, então o
+rpm fica sempre "-").
+
+### Como funciona
+
+```
+ celular (root)                         hub ZEN1                     Pico 2
+ scripts/fanctl.sh  ── USB-C ──►  USB-A ─────── cabo micro-USB ──►  code.py ── PWM 25 kHz ──► transistor ──► ventoinha
+   lê SoC e bateria                                                   ▲  falha segura:
+   a cada 2 s manda "F 65"  ◄──── resposta "S 65 rpm dissipador ..." ─┘  sem notícia por 10 s = 100%
+```
+
+- **Por que HID e não serial:** o kernel do celular não tem `CONFIG_USB_ACM` (porta serial USB),
+  mas tem `CONFIG_HIDRAW=y` (conferido em 2026-10-20). O Pico se apresenta como HID "de
+  fabricante" (usage page 0xFF00) chamado **"s20fe S20FE Fan"**: o Android não o trata como
+  teclado nem controle, só cria `/dev/hidrawN`. Sem recompilar o kernel.
+- **Quem decide é o celular** (as temperaturas do SoC estão lá). Curva (`fanctl.sh`): SoC
+  50 °C → 30% … 80 °C → 100%; bateria 35 °C → 30% … 40 °C → 100%; vale o maior. Sobe na hora,
+  desce 5% a cada 2 s e só para abaixo de 46 °C (SoC) e 34 °C (bateria). Testada com
+  temperaturas simuladas.
+- **O Pico protege:** partida a 100% por 1 s (motor parado não arranca com PWM baixo); sem
+  pedido do celular por 10 s → 100% (ou curva pelo NTC do dissipador, se instalado). LED aceso
+  = celular no controle; piscando = modo de segurança.
+- **O controle térmico do Android continua ativo** (regra 5). A ventoinha só soma.
+- Estado em `/data/local/tmp/s20fe-fan.txt`; o `thermlog.sh` grava as colunas `fan_pct`,
+  `fan_rpm`, `t_dissip` e `fan_modo`, e o `thermsum.py` resume a ventoinha.
+
+### Peças que faltam (baratas)
+
+| Peça | Para quê | Alternativas |
+|---|---|---|
+| Transistor NPN **BC337** ou **2N2222** | liga a ventoinha (lado do GND) | MOSFET de nível lógico **IRLZ44N**, **IRLB8721** ou **AO3400** (SMD). **Não** usar 2N7000/IRF540 (não abrem direito com 3,3 V) |
+| Resistores **1 kΩ** e **10 kΩ** | base do transistor e pull-down | com MOSFET: 100 Ω no gate + 10 kΩ |
+| Diodo **1N5819** (ou 1N4148) | protege o transistor do pico de tensão do motor | 1N4007 também serve |
+| **Pad térmico 1 mm** (≥ 6 W/m·K) ou fita térmica dupla face | dissipador sobre a tampa | |
+| Cabo **micro-USB** curto | Pico 2 ↔ USB-A do hub | |
+| *Para 12 V:* módulo **step-up MT3608** (5 → 12 V) | ventoinha na rotação nominal | fonte 12 V separada (GND em comum com o Pico) |
+| *Opcional:* **NTC 10 k B3950** + resistor 10 kΩ | temperatura do dissipador; curva própria se o celular parar | |
+
+### Ligações (ventoinha de 2 fios)
+
+Pinos do Pico 2 pela numeração da placa (pino 1 = canto do conector USB, lado do GP0).
+
+```
+ +V_FAN ──────────────┬──────────────┐        +V_FAN = VBUS (pino 40) = 5 V   (etapa 1)
+                      │              │                ou saída do MT3608 = 12 V (etapa 2)
+              vermelho│        catodo│ (faixa)
+                ┌─────┴────┐    1N5819
+                │ ventoinha│         │
+                └─────┬────┘    anodo│
+                 preto│              │
+                      ├──────────────┘
+                      │
+                      C
+ GP15 (pino 20) ─1kΩ─ B   BC337 / 2N2222   (com a parte plana de frente, pernas em ordem diferente:
+          │           E                     BC337 = C B E, 2N2222 = E B C; conferir a folha de dados)
+         10kΩ         │
+          │           │
+ GND (pino 18) ───────┴──── GND do MT3608 / da fonte de 12 V, se houver
+
+ Jumper de edição: GP22 (pino 29) ↔ GND (pino 28)   — só para trocar o code.py
+ NTC (opcional):   3V3 (pino 36) ─10kΩ─ GP26 (pino 31) ─NTC─ AGND (pino 33)
+```
+
+- Ventoinha de 2 fios tem um circuito interno que gira o motor; o PWM corta a alimentação dele
+  25 mil vezes por segundo. Em geral funciona, mas em PWM baixo algumas param ou chiam. Se
+  acontecer: subir o `MINIMO`; se ainda chiar, testar `FREQ_PWM` menor (ex.: 100 Hz, que pode
+  dar um "tique" baixo).
+- Se um dia trocar por uma de 3 fios, o fio amarelo (rpm) **nunca vai direto no Pico** em 12 V
+  (pode subir até 12 V com o transistor cortando o GND): usar um diodo Schottky BAT85 (anodo no
+  GP14, pino 19). Na de 4 fios, o fio azul (PWM) vai no coletor e `INVERTER = True`.
+- **Etapa 1 — 5 V direto do VBUS:** muitas ventoinhas de 12 V giram a ~40% da rotação com 5 V
+  (silenciosas, ~40 mA). Testar `fanctl.sh fixo 100` e `fixo 30`: se não arrancar ou não der
+  vazão, ir para a etapa 2. Ajustar o `MINIMO` (no `code.py` e no `fanctl.sh`) para o menor
+  valor em que ela gira sem parar.
+- **Etapa 2 — 12 V pelo MT3608:** entrada no VBUS (pino 40) e GND; **regular a saída para
+  12,0 V com o multímetro antes de ligar a ventoinha** (o trimpot vem em qualquer valor e pode
+  passar de 20 V). A 12 V a ventoinha consome ~1,2 W, ~0,3 A dos 5 V da porta: isso sai do que o
+  hub tem para o celular. Com a fonte de 5 V/1,5 A que o hub recebeu no teste de 2026-10-20 o
+  celular já descarregava; **só usar 12 V com uma fonte PD de verdade** (seção 7).
+- Montar primeiro em protoboard; ver o Pico funcionando no celular antes de soldar.
+- **Pico 1 (RP2040) serve igual:** mesma pinagem, mesmos pinos e o mesmo `boot.py`/`code.py`;
+  só o UF2 muda. Diferença: os pinos do RP2040 **não toleram 5 V** (o RP2350 tolera); neste
+  circuito nenhum pino recebe mais de 3,3 V, então não importa.
+
+### Gravar o firmware (CircuitPython 10.3.1)
+
+1. Baixar o UF2 oficial **da placa certa** (o de uma não funciona na outra):
+   - Pico 2: <https://downloads.circuitpython.org/bin/raspberry_pi_pico2/en_US/adafruit-circuitpython-raspberry_pi_pico2-en_US-10.3.1.uf2>
+   - Pico 1: <https://downloads.circuitpython.org/bin/raspberry_pi_pico/en_US/adafruit-circuitpython-raspberry_pi_pico-en_US-10.3.1.uf2>
+   - Versões **W** (com Wi-Fi) têm UF2 próprio (`raspberry_pi_pico_w` / `raspberry_pi_pico2_w`).
+   O site não publica hash: anotar o SHA-256 aqui na hora (regra prática do projeto).
+2. Segurar **BOOTSEL** e ligar o Pico no PC → aparece o drive `RP2350` (Pico 2) ou `RPI-RP2`
+   (Pico 1) → copiar o UF2. O Pico reinicia como `CIRCUITPY`.
+3. Copiar **`hardware/cooler-pico/code.py`** e por último **`boot.py`** para o `CIRCUITPY`.
+4. Desconectar. **Sem o jumper GP22–GND o drive não aparece mais** (de propósito: o Android
+   montaria o "pendrive" toda vez). Para editar: pôr o jumper, conectar, editar, tirar o jumper.
+5. No Windows, o Pico deve aparecer em "Dispositivos de interface humana". Com o jumper, o
+   console serial do CircuitPython (COM) mostra erros do `code.py`.
+
+### No celular
+
+- Serviço **`/data/adb/service.d/fanctl.sh`** (instalado em 2026-10-20, hash conferido; sem o
+  Pico só procura o dispositivo a cada 5 s). Log `/data/local/tmp/s20fe-fan.log`.
+- Pico ligado numa USB-A do hub, conferir:
+  `adb shell su -c "sh /data/adb/service.d/fanctl.sh teste"` → temperaturas, velocidade calculada
+  e o estado (`<epoch> <pedido> <aplicado> <rpm> <dissipador> <temp do Pico> <modo>`).
+- Velocidade fixa para os testes: `fanctl.sh fixo 100` (ou 0–100); `fanctl.sh fixo auto` volta
+  à curva.
+- Desligar de vez: apagar `/data/adb/service.d/fanctl.sh` e matar o processo
+  (`kill $(cat /data/local/tmp/s20fe-fan.pid)`); o Pico vai para 100% em 10 s (tirá-lo da USB).
+
+### Montagem física
+
+- **Onde vai o cobre:** na traseira, sobre o **quadrado cinza do grafite** da tampa da placa-mãe
+  (fica sobre a blindagem grande), com pad térmico de 1 mm. É a opção **B** da seção 4: o ganho
+  é limitado pelo plástico + grafite no caminho, por isso medir **A1 (só ventoinha) e B (cobre +
+  ventoinha)** com o mesmo protocolo e decidir pelo número.
+- **Peso:** cobre 50 × 50 com aletas passa fácil de 50 g. Não deixar pendurado no celular: o
+  case (ou um elástico/abraçadeira leve) segura o dissipador contra a tampa; a tampa segura os
+  conectores de pressão e não deve receber força.
+- **Ventoinha:** a 1–3 cm do dissipador, soprando contra as aletas. O centro (motor) de uma
+  ventoinha de 80 mm quase não sopra: alinhar as aletas com a coroa das pás, não com o centro.
+  O ar que passa do dissipador deve escapar pelas laterais e, se o case permitir, lamber a
+  frente (tela), que é o caminho principal do calor (seção 2).
+- **Antenas:** cobre é metal. Fazer o teste de Wi-Fi/BT (seção 8) com o dissipador no lugar.
+- **Curto:** o cobre só encosta na tampa plástica. Nada de cobre perto de componentes expostos.
+
+## 11. Case novo impresso em 3D, placa fora do chassi *(decidido em 2026-10-20)*
+
+Decisões do usuário: **opção E** (placa-mãe fora do chassi; o aparelho funciona sem a tela),
+case **impresso em 3D**. Ainda **não há paquímetro**.
+
+### Testes antes de desmontar de vez (nesta ordem; param o plano se falharem)
+1. **Antenas.** Com a tampa da placa-mãe fora, soltar os parafusos e **levantar a placa alguns
+   milímetros** do chassi (os contatos de mola das antenas perdem o contato, como no case novo):
+   comparar o RSSI do Wi-Fi (`dumpsys wifi | grep -i rssi`) e o alcance dos controles BT com a
+   placa no lugar e levantada.
+   - Se cair muito, alternativas sem antena do celular: **controles 2,4 GHz com receptor USB**
+     no hub (não usam o Bluetooth do celular) e **rede por adaptador USB-Ethernet** (conferir no
+     kernel: `CONFIG_USB_RTL8152`, `CONFIG_USB_NET_AX88179_178A`, `CONFIG_USB_NET_CDCETHER`,
+     `CONFIG_USB_USBNET`; não deu para ver em 2026-10-20, celular fora do PC).
+2. **Botão power.** Ver nas fotos onde fica o flex dos botões laterais (no chassi ou na placa) e
+   como o case vai apertá-lo. Sem botão, o aparelho não liga depois de desligado.
+3. **Bateria.** Ela fica colada no chassi. Soltar bateria de lítio colada tem **risco de
+   perfurar e pegar fogo**: dobrar ou usar ferramenta de metal, nunca. Recomendado: **bateria
+   nova** (S20 FE: EB-BG781UBY, 4500 mAh) para o case; a antiga sai com álcool isopropílico
+   sob a cola, sem pressa, e vai para descarte correto. O console precisa da bateria (seção 4,
+   "Descartado").
+
+### Medidas sem paquímetro
+- **Fotos sobre papel milimetrado** (ou com uma régua encostada na peça), câmera **paralela** à
+  mesa e de cima, cada lado da placa, subplaca, bateria e hub sem a carcaça. Com o quadriculado
+  dá para tirar o contorno com erro de ~0,5 mm.
+- Recomendado comprar um **paquímetro digital** (barato) antes de imprimir as peças que
+  encaixam: furos, altura dos componentes, espessura do dissipador.
+- Imprimir **peças de teste finas** (só o contorno, 2 mm de altura) e ajustar antes do case inteiro.
+
+### Desenho (a fazer depois das medidas)
+- Arquivo paramétrico em OpenSCAD em `hardware/case/` (texto, versionável; exporta STL).
+- Placa presa por **espaçadores nos furos dos parafusos originais**, lado do SoC (tela) para
+  o dissipador; o dissipador apertado por **molas/parafusos no case**, nunca pendurado na placa.
+- Bateria nova em compartimento próprio, **longe do fluxo de ar quente**; subplaca USB-C presa
+  ao case, flex principal sem dobra viva; hub ZEN1 sem carcaça + Pico no mesmo case.
+- Ar entrando por baixo, passando no dissipador do SoC e saindo por cima.
+- Material: **PETG ou ASA** (PLA amolece a 55–60 °C).
+
+### Medidas pelas fotos (2026-10-20, papel milimetrado, sem paquímetro)
+Fotos em `hardware/fotos/2026-10-20-*.jpg`. Escala tirada da grade (linha forte = 10 mm,
+média = 5 mm) perto de cada peça; conferida com o chassi (1462 × 672 px na foto da traseira =
+167 × 77 mm medidos contra 159,8 × 74,5 mm oficiais: **erro de ~4%**, porque a peça fica acima do
+papel e mais perto da câmera). Valores com **±1–2 mm**; conferir com paquímetro antes das peças
+de encaixe. Alturas (espessuras) **não** saem das fotos.
+
+| Peça | Medida | Observação |
+|---|---|---|
+| Placa-mãe (contorno total) | ~63 × 51 mm | formato em "U" com dois braços em cima (SIM e conectores) |
+| Blindagem grande, lado da tela | ~46 × 29 mm | coberta de grafite; **marca de pasta no meio = SoC** |
+| Flex principal MAIN ↔ SUB | 18 mm de largura, ~81 mm livres entre as placas | peça de **SM-G781B** ("SM-G781B CTC R03"), funciona no G780G |
+| Subplaca USB-C | ~43 × 22 mm | furos de fixação: um à esquerda, dois nas abas da USB-C |
+| Bateria EB-BG781ABY (4500 mAh) | ~61 × 73 mm | ainda colada no chassi; espessura a medir |
+| Ventoinha | 80 × 80 × 25 mm (padrão 8025) | 2 fios |
+
+O que as fotos mostram:
+- A placa **já está fora do chassi**; as câmeras ficaram no chassi (não são necessárias).
+- **Pasta térmica nos dois lados:** lado da tela = blindagem grande com grafite e pasta no centro
+  (o SoC); lado de trás = duas blindagens com pasta cinza (encostavam no grafite da tampa).
+  O dissipador principal vai no lado da tela, centrado na marca de pasta.
+- **Antenas:** a placa tem conectores coaxiais. O cabo azul vai da placa até uma plaquinha de
+  contato (encostava numa antena do chassi); os cabos vermelho e branco vão até a subplaca. Há
+  um conector coaxial livre no canto de cima. Para o console importam só **Wi-Fi e Bluetooth**
+  (4G e GPS não). Falta descobrir quais contatos são do Wi-Fi/BT.
+- **Botões:** o flex dos botões laterais ficou no chassi (lado esquerdo na foto da traseira).
+  Falta ver como ele se liga à placa.
