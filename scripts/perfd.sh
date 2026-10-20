@@ -3,16 +3,20 @@
 #
 # Mede (a cada 0,5 s, durante o jogo; velocidade = média do último segundo; roda só nos núcleos 0-3):
 #   - FPS real da camada do jogo (SurfaceFlinger TimeStats)
-#   - velocidade estimada = FPS / FPS base do jogo (60 ou 50, aprendido por jogo)
-#   - uso de CPU dos threads da emulação (no PS2: "CPU Thread" = EE, "GS Back", "MTVU", "GS")
+#   - velocidade estimada = FPS / FPS base do jogo (60 NTSC, 50 PAL; aprendido por jogo)
+#     NetherSX2: só funciona com EmuCore/GS/SkipDuplicateFrames=false (desligado em 2026-10-19):
+#     com ele ligado, um jogo de 30 quadros a 100% aparece como 30 FPS no SurfaceFlinger (= "50%")
+#   - uso de CPU dos threads da emulação (NetherSX2: "CPU Thread" = EE, "MTVU" = VU1,
+#     "Thread-2" = auxiliares do GS)
 #   - clocks e temperaturas
 # Só considera "lento" quando o FPS está baixo E o thread mais pesado da emulação está
-# trabalhando (em menus/carregamento o FPS cai, mas a emulação está a 100% com os threads parados).
+# trabalhando (em menus/carregamento o FPS cai, mas a emulação está a 100% com os threads parados)
+# OU a GPU está acima de 80% de uso (gargalo gráfico: os threads ficam esperando a GPU, com pouco
+# uso de CPU; visto em 2026-10-19 com o Guitar Hero forçado a 6x: 20% de velocidade, GPU 99%).
 #
 # Ações:
 #   - Imediatas, a cada 0,5 s: < 85% sobe um degrau por vez; < 75% aplica todos de uma vez:
-#       1) thread mais pesado no núcleo principal (2,84 GHz), demais nos núcleos 4-6 (reaplicado
-#          todo segundo, porque o ARMSX2 refaz as afinidades)
+#       1) thread mais pesado no núcleo principal (2,84 GHz), demais nos núcleos 4-6
 #       + piso da GPU em 625 MHz (a GPU ociosa fica em 400 MHz; teste A/B no Guitar Hero III:
 #         ganho de só ~5%, dentro da variação entre cenas — ajuda pouco, mas é imediato)
 #       2) núcleos grandes travados na frequência máxima
@@ -20,48 +24,53 @@
 #       4) prioridade máxima (nice -10) para os threads da emulação
 #       5) fecha apps em segundo plano
 #     Com a velocidade ≥ 90% por 5 s, tudo volta ao normal (não vale esquentar sem ganho).
-#   - CALAMIDADE (< 65% por 3 s, só PS2): espera o próximo autosave do ARMSX2 (a cada 1 min),
-#     fecha o emulador, aplica 3 ajustes de uma vez e reabre o jogo, que carrega o autosave
-#     (perda de poucos segundos). Uma vez por sessão; desfeito na sessão seguinte se piorar.
-#   - Na próxima abertura do jogo (só PS2/ARMSX2 por enquanto; 2 de uma vez se a sessão ficou < 75%):
-#     configurações do jogo, escolhido pelo gargalo medido; se a velocidade média piorar,
-#     desfaz sozinho e marca o ajuste como ruim para aquele jogo.
+#   - Na próxima abertura do jogo (PS2/NetherSX2): UM ajuste de configuração por vez, no
+#     gamesettings/<CRC>.ini, escolhido pelo gargalo medido; se a velocidade média piorar, desfaz
+#     sozinho e marca o ajuste como ruim para aquele jogo.
+#   - CALAMIDADE (< 65% por 3 s, só PS2, uma vez por sessão): sai pelo menu do NetherSX2 (grava o
+#     .resume.p2s, via controller-hotkeys.sh), avalia o ajuste anterior, aplica UM ajuste e reabre
+#     o jogo com o mesmo comando do Pegasus, que carrega o estado (perda de ~1 s de jogo). Se
+#     continuar lento, a sessão reaberta pode ter outra calamidade, com o ajuste seguinte.
+#   - Ao abrir um jogo: fecha os apps em segundo plano que podem ser fechados (am kill-all).
+#   - NetherSX2 aberto em segundo plano sem jogo rodando (saiu pelo menu dele): fecha o processo,
+#     porque ele não abre um 2º jogo no mesmo processo (tela preta).
 # O controle térmico do Android (thermal-engine) continua sempre ativo; o assistente também
 # baixa um nível da GPU acima de 88 °C.
 #
 # Arquivos: /storage/emulated/0/Games/.perf/  (sessões, resumo.txt, ajustes.txt, estado por jogo)
 # Log: /data/local/tmp/s20fe-perfd.log
 
-OBSERVE=" xyz.aethersx2.android "        # só mede, sem ações (estudo comparativo do NetherSX2)
-EMUS="com.armsx2 xyz.aethersx2.android org.ppsspp.ppsspp com.retroarch dev.legacy.eden_emulator com.droiddeck.launcher"
+NETHER=xyz.aethersx2.android
+EMUS="$NETHER org.ppsspp.ppsspp com.retroarch org.dolphinemu.dolphinemu dev.legacy.eden_emulator com.droiddeck.launcher"
 GPU_MAX=625000000; GPU_BOOST=670000000; GPU_FLOOR=525000000
 HOT=88; COOL=78; BOOST_OK=80          # °C
 SLOW=85                                # % de velocidade: abaixo disto, uma ação por vez, na hora
-VSLOW=75                               # abaixo disto: todas as ações de uma vez (e 2 ajustes por abertura)
-CALAM=65                               # "calamidade": reinicia o jogo com 3 ajustes (carrega o autosave)
-PS2DIR=/storage/emulated/0/Games/ps2
+VSLOW=75                               # abaixo disto: todas as ações de sistema de uma vez
+CALAM=65                               # "calamidade": reinicia o jogo com 1 ajuste (carrega o estado)
 BUSY=45                                # % de CPU do thread mais pesado para considerar "em jogo"
+GPU_BUSY=80                            # ... ou % de uso da GPU (gargalo gráfico: os threads ficam esperando)
 CPU4_MIN_GAME=1670400; CPU7_MIN_GAME=1862400
 K=/sys/class/kgsl/kgsl-3d0; T=/sys/class/thermal; C=/sys/devices/system/cpu/cpufreq
 OUT=/storage/emulated/0/Games/.perf; LOG=/data/local/tmp/s20fe-perfd.log
-JQ=/data/adb/s20fe/bin/jq
-ARMS_RECENT=/storage/emulated/0/Games/ps2/recent_games.json
+GAME_DIRS=/storage/emulated/0/pegasus-frontend/game_dirs.txt
+HOTKEYS=$(dirname "$0")/controller-hotkeys.sh
+# caminho "de baixo" (ext4) da pasta do NetherSX2: dá para acertar dono e contexto dos arquivos
+NETHER_GS=/data/media/0/Android/data/$NETHER/files/gamesettings
 LEVELS="670000000 625000000 587000000 525000000"
 DEF_MINPL=6                            # piso padrão da GPU (nível 6 = 400 MHz)
-# Escada de ajustes do ARMSX2 por gargalo: "chave=valor-json" (um por vez, na ordem)
-# gargalo gráfico com a GPU ociosa = esperas (driver/sincronização), não falta de potência:
-# testa primeiro OpenGL no lugar de Vulkan e afinidade 0 (é o que o NetherSX2 usa e roda bem no
-# Adreno 650), depois o driver do sistema no lugar do Turnip, o modo do GS Back e o upscaler.
-# (hardwareDownloadMode NÃO entra: o valor 0 é o mais preciso e mais lento.)
-# Últimos recursos: blending mínimo e pular 1 quadro (mantém a velocidade e o áudio; menos fluido).
-GFX_STEPS='lsfgEnabled=false renderer="opengl" affinityMode=0 customDriverId="" gsBackThreadMode=0 upscaler=0 upscaleFloat=1 accurateBlendingUnit=0 frameSkip=1'
-CPU_STEPS='affinityMode=0 eeCycleSkip=1 eeCycleRate=-1 affinityMode=5 eeCycleSkip=2 eeCycleRate=-2'
+# Escadas de ajustes do NetherSX2 por gargalo: "seção:chave=valor" do INI do jogo (um por vez,
+# na ordem). EE Cycle Rate negativo = menos ciclos do EE (mais rápido; pode deixar o jogo lento
+# por dentro); EE Cycle Skip pula ciclos; blending mínimo alivia o GS. Valores do PCSX2.
+CPU_STEPS='EmuCore/Speedhacks:EECycleSkip=1 EmuCore/Speedhacks:EECycleRate=-1 EmuCore/GS:accurate_blending_unit=0 EmuCore/Speedhacks:EECycleSkip=2 EmuCore/Speedhacks:EECycleRate=-2'
+# O padrão global do NetherSX2 é 2x (upscale_multiplier, desde 2026-10-19): no gargalo gráfico, o
+# 1º passo é voltar o jogo para a resolução original (1x).
+GFX_STEPS='EmuCore/GS:upscale_multiplier=1 EmuCore/GS:accurate_blending_unit=0 EmuCore/Speedhacks:EECycleSkip=1 EmuCore/Speedhacks:EECycleRate=-1 EmuCore/Speedhacks:EECycleSkip=2 EmuCore/Speedhacks:EECycleRate=-2'
 
 log() { echo "$(date '+%F %T') $*" >> $LOG; }
 ajuste() { echo "$(date '+%F %T') | $*" >> $OUT/ajustes.txt; log "ajuste: $*"; }
 top_pkg() { dumpsys activity activities | grep -m1 topResumedActivity | sed -E 's/.* u0 ([^/]+)\/.*/\1/'; }
 game_uri() { dumpsys activity activities | grep -m1 -A6 "Hist  *#0:" | grep -oE 'dat=[^ ]+' | head -1 | sed 's/^dat=//'; }
-urldec() { sed 's/%20/ /g; s/%28/(/g; s/%29/)/g; s/%27/'"'"'/g; s/%2C/,/g; s/%26/\&/g; s/%5B/[/g; s/%5D/]/g'; }
+urldec() { sed 's/%20/ /g; s/%28/(/g; s/%29/)/g; s/%27/'"'"'/g; s/%2C/,/g; s/%26/\&/g; s/%5B/[/g; s/%5D/]/g; s/%2F/\//g; s/%3A/:/g'; }
 temp() { echo $(( $(cat $T/$1/temp) / 1000 )); }
 next_level() {
     prev=""; for l in $LEVELS; do
@@ -93,7 +102,7 @@ busiest() {
         END { dt=t1-t0; printf "%d %s %s\n", (dt>0 ? m/dt : 0), tid, nm }' $TICKS_FILE $TICKS_FILE.new
     mv $TICKS_FILE.new $TICKS_FILE
 }
-EMU_THREADS="CPU Thread|GS Back|MTVU|GS"
+EMU_THREADS="CPU Thread|GS Back|MTVU|GS|Thread-2"
 emu_tids() { awk -v re="^($EMU_THREADS)\$" '{ n=$3; for (i=4;i<=NF;i++) n=n" "$i; if (n ~ re) print $1 }' $TICKS_FILE; }
 # afinidade: thread mais pesado no núcleo 7, os outros threads da emulação nos núcleos 4-6
 pin_heaviest() {
@@ -104,126 +113,182 @@ pin_heaviest() {
 }
 boost_prio() { for tid in $(emu_tids); do renice -n -10 -p $tid >/dev/null 2>&1; done; }
 
-# ---------- ajuste por jogo (ARMSX2) ----------
-arms_serial() { $JQ -r --arg u "$1" 'map(select(.uri == $u)) | .[0].serial // empty' $ARMS_RECENT 2>/dev/null; }
-# As configurações do ARMSX2 ficam nas SharedPreferences (ConfigStore.kt): config.global e
-# config.game.<serial>, JSON dentro do XML (com &quot; etc.). O armsx2-settings.json é só backup.
-ARMS_PREFS=/data/data/com.armsx2/shared_prefs/ARMSX2.xml
-xml_unesc() { sed 's/&quot;/"/g; s/&lt;/</g; s/&gt;/>/g; s/&apos;/'"'"'/g; s/&amp;/\&/g'; }
-xml_esc() { sed 's/&/\&amp;/g; s/"/\&quot;/g; s/</\&lt;/g; s/>/\&gt;/g'; }
-pref_json() {  # $1 = nome da chave (config.global / config.game.X); devolve o JSON ou {}
-    v=$(grep -o "<string name=\"$1\">[^<]*" $ARMS_PREFS | sed 's/^[^>]*>//' | xml_unesc)
-    [ -n "$v" ] && echo "$v" || echo '{}'
+# ---------- NetherSX2: qual jogo está rodando ----------
+# A URI do jogo vem do log do próprio NetherSX2 ("Starting emulation thread (<uri>)..."), e o
+# serial/CRC vêm do bloco desse jogo no metadata do Pegasus (x-nethersx2-*, tools/gen-pegasus.py).
+# Saída: "serial crc" e, numa 2ª linha, o comando launch: do jogo.
+nether_game() {
+    uri=$(logcat -d --pid=$1 -s EmulationThread:I 2>/dev/null |
+          sed -n 's/.*Starting emulation thread (\(.*\))\.\.\..*/\1/p' | tail -1)
+    [ -n "$uri" ] || return
+    echo "$uri" > $TICKS_FILE.u
+    while IFS= read -r dir; do
+        awk -v u="bootPath $uri " '
+            /^game:/ { if (hit) exit; s = c = l = "" }
+            /^launch: / { l = substr($0, 9); if (index($0 " ", u)) hit = 1 }
+            /^x-nethersx2-serial: / { s = substr($0, 21) }
+            /^x-nethersx2-crc: / { c = substr($0, 18) }
+            END { if (hit && c != "") { print s, c; print l } }' "$dir/metadata.pegasus.txt" 2>/dev/null
+    done < $GAME_DIRS | head -2
 }
-arms_get() {   # valor do jogo; se o jogo não define, o global (false conta como valor)
-    g=$(pref_json "config.game.$1" | $JQ -c --arg k "$2" 'if has($k) then .[$k] else "@ausente" end')
-    [ "$g" != '"@ausente"' ] && { echo "$g"; return; }
-    pref_json config.global | $JQ -c --arg k "$2" 'if has($k) then .[$k] else null end'
+# NetherSX2 parado em segundo plano sem jogo (saiu pelo menu dele): fecha (ver cabeçalho).
+# Só depois de 3 checagens seguidas (~9 s): logo depois de o Pegasus abrir um jogo, o processo
+# já existe sem o "CPU Thread" e às vezes ainda não está na frente.
+NETHER_IDLE=0
+nether_idle_close() {
+    p=$(pidof $NETHER | cut -d' ' -f1)
+    if [ -z "$p" ] || grep -qx "CPU Thread" /proc/$p/task/*/comm 2>/dev/null; then
+        NETHER_IDLE=0; return      # fechado, ou com jogo pausado (não mexe)
+    fi
+    NETHER_IDLE=$((NETHER_IDLE + 1)); [ $NETHER_IDLE -ge 3 ] || return
+    am force-stop $NETHER; NETHER_IDLE=0; log "NetherSX2 sem jogo em segundo plano: fechado"
 }
-arms_set() {  # serial chave valor-json; só com o ARMSX2 fechado (senão ele sobrescreve)
-    pidof com.armsx2 >/dev/null && return 1
-    new=$(pref_json "config.game.$1" | $JQ -c --arg k "$2" --argjson v "$3" 'if $v == null then del(.[$k]) else .[$k] = $v end') || return 1
-    esc=$(echo "$new" | xml_esc)
-    awk -v key="config.game.$1" -v val="$esc" '
-        index($0, "<string name=\"" key "\">") { print "    <string name=\"" key "\">" val "</string>"; done=1; next }
-        /<\/map>/ && !done { print "    <string name=\"" key "\">" val "</string>" }
-        { print }' $ARMS_PREFS > $ARMS_PREFS.s20fe.tmp || return 1
-    grep -q "config.game.$1" $ARMS_PREFS.s20fe.tmp && cat $ARMS_PREFS.s20fe.tmp > $ARMS_PREFS
-    rm -f $ARMS_PREFS.s20fe.tmp
+
+# ---------- ajuste por jogo (NetherSX2: gamesettings/<CRC>.ini) ----------
+ini_get() {   # crc seção chave -> valor no INI do jogo, ou @ausente (vale o global)
+    f="$NETHER_GS/$1.ini"; [ -f "$f" ] || { echo @ausente; return; }
+    awk -v s="[$2]" -v k="$3" '
+        /^\[/ { in_s = ($0 == s); next }
+        in_s { kk = $0; sub(/[ \t]*=.*/, "", kk)
+               if (kk == k) { v = substr($0, index($0, "=") + 1); gsub(/^[ \t]+|[ \t\r]+$/, "", v); print v; found = 1; exit } }
+        END { if (!found) print "@ausente" }' "$f"
 }
+ini_set() {   # crc seção chave valor (@ausente apaga); só com o NetherSX2 fechado
+    pidof $NETHER >/dev/null && return 1
+    f="$NETHER_GS/$1.ini"; tmp=/data/local/tmp/s20fe-ini.tmp
+    if [ ! -f "$f" ]; then   # arquivo novo: dono e contexto iguais aos da pasta (senão o app não lê)
+        : > "$f" || return 1
+        chown "$(stat -c %u:%g "$NETHER_GS")" "$f"; chcon "$(ls -dZ "$NETHER_GS" | cut -d' ' -f1)" "$f"
+    fi
+    awk -v s="[$2]" -v k="$3" -v v="$4" '
+        function put() { if (!done && v != "@ausente") print k " = " v; done = 1 }
+        /^\[/ { if (in_s) put(); in_s = ($0 == s); if (in_s) seen = 1; print; next }
+        in_s { kk = $0; sub(/[ \t]*=.*/, "", kk); if (kk == k) { put(); next } }
+        { print }
+        END { if (in_s) put(); else if (!seen && v != "@ausente") { print s; print k " = " v } }' "$f" > $tmp &&
+        cat $tmp > "$f"    # cat, não mv: mantém dono e contexto SELinux
+    rm -f $tmp
+}
+step_get() { k=${1%%=*}; ini_get "$2" "${k%%:*}" "${k#*:}"; }
+step_set() { k=${1%%=*}; ini_set "$2" "${k%%:*}" "${k#*:}" "$3"; }
 state_get() { [ -f "$OUT/estado-$1.txt" ] && grep -m1 "^$2=" "$OUT/estado-$1.txt" | cut -d= -f2-; }
 state_set() {
     f="$OUT/estado-$1.txt"; touch "$f"; grep -v "^$2=" "$f" > "$f.tmp"; echo "$2=$3" >> "$f.tmp"; mv "$f.tmp" "$f"
 }
-# com o ARMSX2 fechado: avalia o último ajuste e aplica o(s) próximo(s), se houver pendência.
-# Velocidade < 75% na última sessão: 2 ajustes de uma vez (desfeitos juntos se piorar).
-# ultimo_ajuste / valor_anterior guardam listas separadas por ";".
-arms_tune() {
-    s=$1; pend=$(state_get $s pendente); [ -n "$pend" ] || return
-    speed=$(state_get $s ultima_vel); base=$(state_get $s vel_antes_ajuste)
+# Um ajuste de configuração por vez (regra do usuário, reafirmada em 2026-10-19), tanto na próxima
+# abertura quanto na calamidade; cada um é avaliado (mantido ou desfeito) antes do seguinte.
+# ultimo_ajuste / valor_anterior aceitam listas separadas por ";" (estados antigos com 2-3 juntos).
+# avalia o último ajuste do jogo $1 com a velocidade $2 (só com o NetherSX2 fechado)
+avaliar_ultimo() {
+    s=$1; speed=$2; base=$(state_get $s vel_antes_ajuste)
     last=$(state_get $s ultimo_ajuste); prev=$(state_get $s valor_anterior)
-    if [ -n "$last" ] && [ -n "$base" ] && [ "$(state_get $s avaliado)" = 0 ]; then
-        if [ "$speed" -lt $((base - 2)) ]; then
-            i=1; for st in $(echo "$last" | tr ';' ' '); do
-                k=${st%%=*}; pv=$(echo "$prev" | cut -d';' -f$i); arms_set $s "$k" "$pv"; i=$((i + 1))
-            done
-            ajuste "$s: '$last' piorou ($base% -> $speed%), desfeito (volta: $prev)"
-            state_set $s ruins "$(state_get $s ruins) $(echo "$last" | tr ';' ' ')"
-        else
-            ajuste "$s: '$last' mantido ($base% -> $speed%)"
-        fi
-        state_set $s avaliado 1
+    [ -n "$last" ] && [ -n "$base" ] && [ -n "$speed" ] && [ "$(state_get $s avaliado)" = 0 ] || return
+    if [ "$speed" -lt $((base - 2)) ]; then
+        i=1; for st in $(echo "$last" | tr ';' ' '); do
+            pv=$(echo "$prev" | cut -d';' -f$i); step_set "$st" $s "$pv"; i=$((i + 1))
+        done
+        ajuste "$s: '$last' piorou ($base% -> $speed%), desfeito (volta: $prev)"
+        state_set $s ruins "$(state_get $s ruins) $(echo "$last" | tr ';' ' ')"
+    else
+        ajuste "$s: '$last' mantido ($base% -> $speed%)"
     fi
-    [ "$pend" = nenhum ] && return
-    n=1; [ -n "$speed" ] && [ "$speed" -lt $VSLOW ] && n=2
-    arms_apply $s $pend $n "$speed" || { state_set $s pendente nenhum; ajuste "$s: sem mais ajustes para tentar no gargalo $pend"; }
+    state_set $s avaliado 1
 }
-# aplica até $3 ajustes ainda não tentados da escada do gargalo $2; guarda para avaliar/desfazer
-arms_apply() {
+# com o NetherSX2 fechado: avalia o último ajuste e aplica o próximo, se houver pendência ($1 = CRC)
+game_tune() {
+    s=$1; pend=$(state_get $s pendente); [ -n "$pend" ] || return
+    speed=$(state_get $s ultima_vel)
+    avaliar_ultimo $s "$speed"
+    [ "$pend" = nenhum ] && return
+    tune_apply $s $pend 1 "$speed" || { state_set $s pendente nenhum; ajuste "$s: sem mais ajustes para tentar no gargalo $pend"; }
+}
+# aplica até $3 (hoje sempre 1) ajustes ainda não tentados da escada do gargalo $2; guarda para avaliar/desfazer
+tune_apply() {
     s=$1; case "$2" in gfx) steps=$GFX_STEPS;; *) steps=$CPU_STEPS;; esac
     tried="$(state_get $s tentados) $(state_get $s ruins)"
     applied=""; prevs=""; count=0
     for st in $steps; do
         [ $count -ge $3 ] && break
         case " $tried " in *" $st "*) continue;; esac
-        k=${st%%=*}; v=${st#*=}
-        cur=$(arms_get $s "$k")
+        v=${st#*=}; cur=$(step_get "$st" $s)
         state_set $s tentados "$(state_get $s tentados) $st"
         [ "$cur" = "$v" ] && continue
-        if arms_set $s "$k" "$v"; then
+        if step_set "$st" $s "$v"; then
             applied="${applied:+$applied;}$st"; prevs="${prevs:+$prevs;}$cur"; count=$((count + 1))
         fi
     done
     [ $count -gt 0 ] || return 1
     state_set $s ultimo_ajuste "$applied"; state_set $s valor_anterior "$prevs"
     state_set $s vel_antes_ajuste "$4"; state_set $s avaliado 0; state_set $s pendente nenhum
-    ajuste "$s: velocidade $4% (gargalo $2) -> aplicado $applied (antes: $prevs)"
+    ajuste "$s ($GAME): velocidade $4% (gargalo $2) -> aplicado $applied (antes: $prevs)"
     return 0
 }
-
+# gargalo: $1 = thread mais pesado, $2 = uso médio da GPU (%). GPU >= 80% é gráfico mesmo que o
+# thread mais pesado seja o do EE (ele fica esperando a GPU).
+gargalo() {
+    [ "${2:-0}" -ge 80 ] 2>/dev/null && { echo gfx; return; }
+    case "$1" in "CPU Thread"|MTVU) echo cpu;; *) echo gfx;; esac
+}
 # há ajuste ainda não tentado na escada do gargalo atual?
 cal_has_steps() {
-    case "$bname" in "GS Back"|GS) st_list=$GFX_STEPS;; *) st_list=$CPU_STEPS;; esac
-    tried="$(state_get $SERIAL tentados) $(state_get $SERIAL ruins)"
+    case "$(gargalo "$bname" "$gb")" in gfx) st_list=$GFX_STEPS;; *) st_list=$CPU_STEPS;; esac
+    tried="$(state_get $CRC tentados) $(state_get $CRC ruins)"
     for st in $st_list; do case " $tried " in *" $st "*) ;; *) return 0;; esac; done
     return 1
 }
-# calamidade: espera o próximo autosave, fecha o ARMSX2, aplica 3 ajustes e reabre o jogo
+# calamidade: sai salvando pelo menu, avalia o ajuste anterior (se a sessão veio de uma calamidade),
+# aplica 1 ajuste e reabre o jogo (carrega o .resume.p2s). Se continuar lento, a sessão reaberta
+# pode ter a sua própria calamidade, com o ajuste seguinte.
 calamity_restart() {
-    case "$bname" in "GS Back"|GS) g=gfx;; *) g=cpu;; esac
-    v=$(awk -F, -v busy=$BUSY 'NR>1 && $7>=busy { n++; t+=$5 } END { if (n) printf "%d", t/n }' "$SESSION")
-    # o ARMSX2 quer o caminho puro e decodificado no extra "path" (como os atalhos dele);
-    # um file:// com %20 falha com "Requested filename ... does not exist"
-    case "$URI" in
-        content://org.pegasus_frontend.android.files/ext/*) path="/storage/emulated/0/${URI#content://org.pegasus_frontend.android.files/ext/}" ;;
-        file://*) path="${URI#file://}" ;;
-        *) path="$URI" ;;
-    esac
-    path=$(echo "$path" | urldec)
-    am force-stop com.armsx2; sleep 1
-    if arms_apply $SERIAL $g 3 "${v:-$vel}"; then
-        am start --user 0 -n com.armsx2/.MainActivity -a android.intent.action.VIEW --activity-clear-top --es path "$path" >/dev/null 2>&1
-        ajuste "$SERIAL: CALAMIDADE (${vel}% por 3 s) -> jogo reiniciado com $(state_get $SERIAL ultimo_ajuste), carregando o autosave"
+    g=$(gargalo "$bname" "$gb")
+    v=$(awk -F, -v busy=$BUSY -v gbusy=$GPU_BUSY 'NR>1 && ($7>=busy || $9>=gbusy) { n++; t+=$5 } END { if (n) printf "%d", t/n }' "$SESSION")
+    sh "$HOTKEYS" action nether-exit
+    if [ $? = 1 ]; then ajuste "$CRC: CALAMIDADE (${vel}%) mas não consegui salvar e sair; nada feito"; return; fi
+    avaliar_ultimo $CRC "${v:-$vel}"
+    if tune_apply $CRC $g 1 "${v:-$vel}"; then
+        what="jogo reiniciado com $(state_get $CRC ultimo_ajuste)"
     else
-        am start --user 0 -n com.armsx2/.MainActivity -a android.intent.action.VIEW --activity-clear-top --es path "$path" >/dev/null 2>&1
-        ajuste "$SERIAL: CALAMIDADE (${vel}% por 3 s) mas não há mais ajustes na escada $g; jogo reaberto"
+        what="não há mais ajustes na escada $g; jogo reaberto sem mudanças"
     fi
+    # o comando do Pegasus, relido do metadata (o hotkeys acabou de pôr o saveStatePath se o
+    # estado era novo)
+    launch=$(nether_game_launch)
+    if [ -n "$launch" ]; then sh -c "$launch" >/dev/null 2>&1; else what="$what; comando do jogo não encontrado, não reabri"; fi
+    ajuste "$CRC ($GAME): CALAMIDADE (${vel}% por 3 s) -> $what"
+}
+nether_game_launch() {
+    while IFS= read -r dir; do
+        awk -v c="x-nethersx2-crc: $CRC" '
+            /^game:/ { if (hit) exit; l = "" }
+            /^launch: / { l = substr($0, 9) }
+            $0 == c { hit = 1 }
+            END { if (hit) print l }' "$dir/metadata.pegasus.txt" 2>/dev/null
+    done < $GAME_DIRS | head -1
 }
 
 game_start() {
-    PKG=$1; PID=$(pidof $PKG | cut -d' ' -f1); URI=$(game_uri); GAME=$(echo "${URI##*/}" | urldec | tr , ";")
+    PKG=$1; PID=$(pidof $PKG | cut -d' ' -f1); TICKS_FILE=/data/local/tmp/s20fe-ticks
+    SERIAL=""; CRC=""; URI=""
+    if [ "$PKG" = $NETHER ]; then
+        sleep 1    # o log "Starting emulation thread" sai logo depois da tela abrir
+        nether_game $PID > $TICKS_FILE.g; { read SERIAL CRC; } < $TICKS_FILE.g
+        URI=$(cat $TICKS_FILE.u 2>/dev/null); rm -f $TICKS_FILE.g $TICKS_FILE.u
+    else
+        URI=$(game_uri)
+    fi
+    GAME=$(echo "${URI##*/}" | urldec | sed 's#.*/##' | tr , ";")
     [ -n "$GAME" ] || GAME="$PKG"
-    SERIAL=""
-    [ "$PKG" = com.armsx2 ] && SERIAL=$(arms_serial "$(echo "$URI" | sed 's#^content://org.pegasus_frontend.android.files/ext/#file:///storage/emulated/0/#')")
-    SESSION="$OUT/sessao-$(date +%Y%m%d-%H%M%S).csv"; TICKS_FILE=/data/local/tmp/s20fe-ticks
+    SESSION="$OUT/sessao-$(date +%Y%m%d-%H%M%S).csv"
     echo "hora,emulador,jogo,fps,velocidade,thread_mais_pesado,uso_thread,gpu_mhz,gpu_busy,t_gpu,t_cpu,t_bat,acao" > "$SESSION"
     dumpsys SurfaceFlinger --timestats -enable -clear >/dev/null
     echo $CPU4_MIN_GAME > $C/policy4/scaling_min_freq; echo $CPU7_MIN_GAME > $C/policy7/scaling_min_freq
     echo $GPU_MAX > $K/max_gpuclk
+    am kill-all >/dev/null 2>&1   # libera RAM: só processos em segundo plano que podem ser fechados
     { echo "@uptime $(cut -d' ' -f1 /proc/uptime)"; thread_ticks $PID; } > $TICKS_FILE
-    BASE=""; [ -n "$SERIAL" ] && BASE=$(state_get $SERIAL fps_base); [ -n "$BASE" ] || BASE=60
-    LEVEL=0; OK=0; MAXFPS=0; FLOOR=$DEF_MINPL; PREV=""; CALN=0; CAL_WAIT=0; CAL_DONE=0
-    log "jogo: $PKG | $GAME | serial=$SERIAL base=$BASE"
+    BASE=""; [ -n "$CRC" ] && BASE=$(state_get $CRC fps_base)
+    if [ -z "$BASE" ]; then case "$SERIAL" in SLES*|SCES*) BASE=50;; *) BASE=60;; esac; fi
+    LEVEL=0; OK=0; MAXFPS=0; FLOOR=$DEF_MINPL; PREV=""; CALN=0; CAL_DONE=0
+    log "jogo: $PKG | $GAME | serial=$SERIAL crc=$CRC base=$BASE"
 }
 game_stop() {
     echo $DEF_MINPL > $K/min_pwrlevel
@@ -232,26 +297,26 @@ game_stop() {
     echo $GPU_MAX > $K/max_gpuclk
     dumpsys SurfaceFlinger --timestats -disable >/dev/null
     # resumo só das amostras "em jogo" (thread mais pesado trabalhando)
-    res=$(awk -F, -v busy=$BUSY 'NR>1 && $7>=busy && $5!="" { n++; v+=$5; if (min=="" || $5+0<min) min=$5+0; if ($5<85) low++
-            g[$6]++; if ($10>tg) tg=$10; if ($12>tb) tb=$12 }
+    res=$(awk -F, -v busy=$BUSY -v gbusy=$GPU_BUSY 'NR>1 && ($7>=busy || $9>=gbusy) && $5!="" { n++; v+=$5; if (min=="" || $5+0<min) min=$5+0; if ($5<85) low++
+            g[$6]++; if ($10+0>tg) tg=$10+0; if ($12+0>tb) tb=$12+0; gb+=$9 }
         END { if (!n) { print "0"; exit }
             for (k in g) if (g[k]>gm) { gm=g[k]; gk=k }
-            printf "%d %d %d %d %d %s\n", v/n, min, 100*low/n, tg, tb, gk }' "$SESSION")
-    echo "$res" > $TICKS_FILE.r; read vel pior abaixo tg tb garg < $TICKS_FILE.r
+            printf "%d %d %d %d %d %d %s\n", v/n, min, 100*low/n, tg, tb, gb/n, gk }' "$SESSION")
+    echo "$res" > $TICKS_FILE.r; read vel pior abaixo tg tb gpu garg < $TICKS_FILE.r
     if [ -n "$vel" ] && [ "$vel" != 0 ] && [ -n "$tb" ]; then
-        echo "$(date '+%Y-%m-%d %H:%M') | $PKG | $GAME | velocidade média ${vel}% (pior ${pior}%, ${abaixo}% do tempo abaixo de 85%) | thread mais pesado: $garg | máx GPU ${tg}°C bateria ${tb}°C" >> $OUT/resumo.txt
-        if [ -n "$SERIAL" ]; then
-            state_set $SERIAL ultima_vel $vel
-            [ "$MAXFPS" -ge 55 ] && state_set $SERIAL fps_base 60
+        echo "$(date '+%Y-%m-%d %H:%M') | $PKG | $GAME | velocidade média ${vel}% (pior ${pior}%, ${abaixo}% do tempo abaixo de 85%) | thread mais pesado: $garg | GPU ${gpu}% de uso | máx GPU ${tg}°C bateria ${tb}°C" >> $OUT/resumo.txt
+        if [ -n "$CRC" ]; then
+            state_set $CRC ultima_vel $vel
+            [ "$MAXFPS" -ge 55 ] && state_set $CRC fps_base 60
             if [ "$vel" -lt 95 ]; then
-                case "$garg" in "GS Back"|GS) state_set $SERIAL pendente gfx;; *) state_set $SERIAL pendente cpu;; esac
-            elif [ "$(state_get $SERIAL avaliado)" = 0 ]; then
-                state_set $SERIAL pendente nenhum   # só avaliar o último ajuste
+                state_set $CRC pendente $(gargalo "$garg" "$gpu")
+            elif [ "$(state_get $CRC avaliado)" = 0 ]; then
+                state_set $CRC pendente nenhum   # só avaliar o último ajuste
             fi
         fi
     fi
     log "fim: $PKG | $GAME | $res"
-    LASTSERIAL=$SERIAL; PKG=""
+    LASTCRC=$CRC; PKG=""
 }
 
 # vigia: se o laço cair por qualquer erro, reinicia em 5 s
@@ -268,14 +333,15 @@ fi
 taskset -p 0f $$ >/dev/null 2>&1    # o próprio assistente só nos núcleos econômicos (0-3)
 mkdir -p $OUT
 log "iniciado"
-PKG=""; LASTSERIAL=""
+PKG=""; LASTCRC=""
 while true; do
     cur=$(top_pkg)
     # fim de sessão: outro app na frente, ou o emulador foi fechado e reaberto (processo novo)
     if [ -n "$PKG" ] && { [ "$cur" != "$PKG" ] || [ "$(pidof $PKG | cut -d' ' -f1)" != "$PID" ]; }; then game_stop; fi
-    # ajustes do ARMSX2 só com ele fechado (senão ele sobrescreve o JSON)
-    if [ -z "$PKG" ] && [ -n "$LASTSERIAL" ] && ! pidof com.armsx2 >/dev/null; then
-        arms_tune $LASTSERIAL; LASTSERIAL=""
+    if [ -z "$PKG" ] && [ "$cur" != $NETHER ]; then nether_idle_close; fi
+    # ajustes do NetherSX2 só com ele fechado
+    if [ -z "$PKG" ] && [ -n "$LASTCRC" ] && ! pidof $NETHER >/dev/null; then
+        game_tune $LASTCRC; LASTCRC=""
     fi
     if [ -z "$PKG" ] && echo " $EMUS " | grep -q " $cur "; then game_start "$cur"; fi
     if [ -n "$PKG" ]; then
@@ -283,6 +349,7 @@ while true; do
         fps=$(fps_now "$PKG"); [ -n "$fps" ] || fps=0
         [ "$fps" -gt "$MAXFPS" ] && MAXFPS=$fps
         busiest > $TICKS_FILE.b; read bpct btid bname < $TICKS_FILE.b; bpct=${bpct:-0}
+        gb=$(cat $K/gpu_busy_percentage | tr -d " %"); gb=${gb:-0}
         vel1=$(( fps * 100 / BASE )); [ $vel1 -gt 100 ] && vel1=100
         vel=$(( (vel1 + ${PREV:-$vel1}) / 2 )); PREV=$vel1     # média do último segundo
         tg=$(temp thermal_zone15); tc=$(temp thermal_zone7); tb=$(temp thermal_zone84)
@@ -291,8 +358,7 @@ while true; do
             echo $DEF_MINPL > $K/min_pwrlevel; FLOOR=$DEF_MINPL       # solta o piso antes de baixar o teto
             n=$(next_level $gmax down); echo $n > $K/max_gpuclk; acao="GPU quente: piso solto, teto $((n/1000000))"
         fi
-        case "$OBSERVE" in *" $PKG "*) obs=1;; *) obs=0;; esac
-        if [ $obs = 0 ] && [ $vel -lt $SLOW ] && [ "$bpct" -ge $BUSY ]; then
+        if [ $vel -lt $SLOW ] && { [ "$bpct" -ge $BUSY ] || [ "$gb" -ge $GPU_BUSY ]; }; then
             OK=0; from=$((LEVEL + 1))
             if [ $vel -lt $VSLOW ]; then LEVEL=5; else LEVEL=$((LEVEL + 1)); fi   # <75%: tudo de uma vez
             pin_heaviest "$btid"; acao="$acao lento ${vel}%: '$bname' no núcleo principal"
@@ -317,26 +383,15 @@ while true; do
                 LEVEL=0; OK=0
             fi
         fi
-        # calamidade (só PS2/ARMSX2, uma vez por sessão): < 65% por 3 s
-        if [ "$PKG" = com.armsx2 ] && [ -n "$SERIAL" ] && [ $CAL_DONE = 0 ]; then
-            if [ $vel -lt $CALAM ] && [ "$bpct" -ge $BUSY ]; then CALN=$((CALN + 1)); else CALN=0; fi
-            AS=$(ls "$PS2DIR/sstates/$SERIAL "*.autosave.p2s 2>/dev/null | head -1)
-            if [ $CAL_WAIT = 0 ] && [ $CALN -ge 6 ]; then
-                CAL_WAIT=1; CAL_MT=$(stat -c %Y "$AS" 2>/dev/null || echo 0); CAL_T0=$(date +%s)
-                acao="$acao CALAMIDADE ${vel}%: esperando o próximo autosave para reiniciar com ajustes"
-                log "calamidade: $GAME | ${vel}%; aguardando autosave"
-            elif [ $CAL_WAIT = 1 ]; then
-                if [ "$(stat -c %Y "$AS" 2>/dev/null || echo 0)" != "$CAL_MT" ]; then
-                    CAL_DONE=1
-                    if [ $vel -ge $SLOW ]; then
-                        log "calamidade cancelada: $GAME | velocidade já voltou a ${vel}%"
-                    elif ! cal_has_steps; then
-                        log "calamidade cancelada: $GAME | não há ajustes disponíveis (não reinicia à toa)"
-                    else
-                        sleep 1; calamity_restart; acao="$acao CALAMIDADE: reiniciado com ajustes"
-                    fi
-                elif [ $(( $(date +%s) - CAL_T0 )) -gt 75 ]; then
-                    CAL_WAIT=0; CAL_DONE=1; log "calamidade: autosave não apareceu em 75 s; reinício cancelado"
+        # calamidade (só PS2/NetherSX2, uma vez por sessão): < 65% por 3 s
+        if [ "$PKG" = $NETHER ] && [ -n "$CRC" ] && [ $CAL_DONE = 0 ]; then
+            if [ $vel -lt $CALAM ] && { [ "$bpct" -ge $BUSY ] || [ "$gb" -ge $GPU_BUSY ]; }; then CALN=$((CALN + 1)); else CALN=0; fi
+            if [ $CALN -ge 6 ]; then
+                CAL_DONE=1
+                if cal_has_steps; then
+                    acao="$acao CALAMIDADE ${vel}%: salvando, ajustando e reabrindo"; calamity_restart
+                else
+                    log "calamidade: $GAME | ${vel}%, mas não há ajustes disponíveis (não reinicia à toa)"
                 fi
             fi
         fi

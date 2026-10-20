@@ -1,0 +1,7 @@
+# Scripts e arquivos que vão para o celular/Linux: sempre LF, mesmo no Git do Windows
+# (core.autocrlf=true gravaria CRLF ao trocar de branch, e "sh" no Android quebra com CRLF)
+*.sh  text eol=lf
+*.py  text eol=lf
+*.qml text eol=lf
+*.cfg text eol=lf
+*.patch -text
