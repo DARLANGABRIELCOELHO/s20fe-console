@@ -96,7 +96,7 @@ Procedimento conferido na fonte da wiki (github.com/LineageOS/lineage_wiki, `_da
 5. [x] Modo Download → `samloader flash --partition RECOVERY recovery.img --no-reboot`. Feito em 2026-10-11, entrou no Lineage Recovery. (No recovery o adb aparece como "unauthorized" fora do modo sideload; é normal.) A tela continua em "Downloading..." mesmo depois de terminar. Forçar o desligamento (Volume − + Power, soltar **assim que a tela apagar**) e **entrar no recovery imediatamente** (Volume + e Power com o cabo). Se iniciar o sistema antes, o recovery stock sobrescreve o Lineage Recovery.
 6. [x] Lineage Recovery: Factory Reset > Format data / factory reset. Voltar ao menu, Apply update > Apply from ADB > `adb -d sideload <zip>`. **Não reiniciar para o sistema** antes de terminar. Feito em 2026-10-11 (adb para em 47% com "Total xfer: 1.00x", é normal).
 7. [x] GApps: **sem Google** (decidido em 2026-10-11). Apps e emuladores via Obtainium/GitHub/F-Droid.
-8. [ ] Validar e anotar os resultados aqui:
+8. [x] Validar e anotar os resultados aqui:
    - [x] Imagem na TV pelo adaptador USB-C → HDMI → **funciona desde 2026-10-18, depois da troca da subplaca USB-C** (kernel próprio com `RETAIN_LINK_POWER`). Antes da troca não funcionava (ver "Problema: saída de vídeo" abaixo)
    - [x] Carregar enquanto sai vídeo (hub com PD)
    - [x] Controle Bluetooth
