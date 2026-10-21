@@ -684,3 +684,21 @@ Reativados à mão depois da correção. Se o aparelho voltar a entrar em loop, 
 **Primeiro dado do teste de antenas (placa fora do chassi, sem tela):** Wi-Fi conectado na rede
 de 2,4 GHz (canal 11) com **−66 a −70 dBm**. Funciona, mas é fraco. Falta comparar com a placa
 no chassi na mesma posição e medir o Bluetooth (estava desligado nas configurações).
+
+### Placa fora do chassi, sem tela, em jogo na TV (2026-10-21)
+- **TV:** depois de soltar o flex principal para as fotos, o AUX do DisplayPort não respondia
+  (`error reading DP_TRAINING_AUX_RD_INTERVAL` → `AUX failure` → "poor connection"; HPD e USB do
+  hub funcionavam). **Reencaixar o flex principal nas duas pontas resolveu**: imagem na TV.
+  Se a TV parar de funcionar depois de mexer nas placas, conferir primeiro o encaixe do flex.
+- **Temperatura, ~23 min de Midnight Club 3 (NetherSX2) na TV, placa ao ar livre, sem dissipador
+  nem ventoinha** (dados do `perfd`, `sessao-20261021-092101.csv`): 60 FPS, velocidade média 96%;
+  GPU média 50 °C / **máx. 56 °C**, CPU máx. 66 °C, **bateria máx. 33 °C** (média 24 °C), GPU entre
+  400 e 625 MHz. No mesmo jogo, com a placa **dentro do chassi**, as sessões de 19–20/10 deram GPU
+  máx. 73–85 °C e bateria 38–46 °C. → **Com as duas faces da placa expostas ao ar, o aparelho
+  esquenta bem menos** que dentro do chassi (lá o calor fica preso entre a tela e a tampa). Para
+  o case: manter as duas faces da placa ventiladas; a ventoinha e o cobre ficam como folga para
+  jogos mais pesados e para os 670 MHz.
+- **Antenas fora do chassi:** Wi-Fi nas duas antenas com sinais parecidos (Ralfcell 2,4 GHz −59 dBm,
+  5 GHz −66 dBm; antena 0 e 1 separadas no scan). Bluetooth ligado, controles ainda não testados.
+- **adb pela rede:** a rede "Bar do Marcao" isola os clientes (o celular chega ao roteador e à
+  internet, mas não ao PC); não serve para o adb pelo Wi-Fi.
