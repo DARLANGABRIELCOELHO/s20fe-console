@@ -699,6 +699,10 @@ no chassi na mesma posição e medir o Bluetooth (estava desligado nas configura
   o case: manter as duas faces da placa ventiladas; a ventoinha e o cobre ficam como folga para
   jogos mais pesados e para os 670 MHz.
 - **Antenas fora do chassi:** Wi-Fi nas duas antenas com sinais parecidos (Ralfcell 2,4 GHz −59 dBm,
-  5 GHz −66 dBm; antena 0 e 1 separadas no scan). Bluetooth ligado, controles ainda não testados.
+  5 GHz −66 dBm; antena 0 e 1 separadas no scan). **Wi-Fi e controle Bluetooth funcionaram bem em
+  jogo** (confirmado pelo usuário). Os cabos coaxiais **vermelho e branco** são das antenas de
+  **celular (4G)**: levam as faixas baixa/média e alta do modem até as antenas de baixo (no manual
+  do G780F, conectores RFS1000 e RFS1001). Sem chip no console, não fazem diferença; podem ser
+  soltos para simplificar o case. Wi-Fi/BT usam os contatos de mola da placa e o cabo azul.
 - **adb pela rede:** a rede "Bar do Marcao" isola os clientes (o celular chega ao roteador e à
   internet, mas não ao PC); não serve para o adb pelo Wi-Fi.
