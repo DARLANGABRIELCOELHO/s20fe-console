@@ -506,8 +506,12 @@ case **impresso em 3D**. Ainda **não há paquímetro**.
   encaixam: furos, altura dos componentes, espessura do dissipador.
 - Imprimir **peças de teste finas** (só o contorno, 2 mm de altura) e ajustar antes do case inteiro.
 
-### Desenho (a fazer depois das medidas)
-- Arquivo paramétrico em OpenSCAD em `hardware/case/` (texto, versionável; exporta STL).
+### Desenho
+- Estudo paramétrico de volume rev. 0 em `hardware/case/concept.scad`, com instruções em
+  `hardware/case/README.md`. Serve para revisar o arranjo e o envelope; ainda não é peça de
+  encaixe nem está pronto para montar a eletrônica.
+- Fechar o modelo de encaixe depois das medidas: contorno e furos da placa, alturas dos
+  componentes, bateria, posição da USB-C e dimensões do hub.
 - Placa presa por **espaçadores nos furos dos parafusos originais**, lado do SoC (tela) para
   o dissipador; o dissipador apertado por **molas/parafusos no case**, nunca pendurado na placa.
 - Bateria nova em compartimento próprio, **longe do fluxo de ar quente**; subplaca USB-C presa
