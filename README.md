@@ -58,6 +58,7 @@ No caminho foram testados e descartados: desligar o HDCP, forçar criptografia, 
   - Geração automática de coleções e comandos via [`tools/gen-pegasus.py`](tools/gen-pegasus.py) a partir das definições do ES-DE.
   - **Lançamento do NetherSX2 (PS2)**: no Android 16 o NetherSX2 não consegue abrir nem o caminho bruto (`{file.path}`, bloqueado pelo scoped storage, porque ele não pede permissão de armazenamento) nem a URI do Pegasus (`{file.uri}` aponta para o provider do Pegasus, que outros apps não acessam). Seguindo o mesmo padrão do Daijishō, o gerador monta para cada jogo uma URI SAF (`content://com.android.externalstorage.documents/tree/…/document/…`) dentro da pasta `Games/ps2`, para a qual o NetherSX2 já tem permissão persistente, e grava um `launch:` por jogo no metadata. O jogo abre direto, sem passar pela tela inicial do emulador.
   - **PS2 como console (sair salvando, voltar onde parou)**: Select+Start no controle sai do jogo pelo menu do NetherSX2, que grava um estado de retomada (`.resume.p2s`), e fecha o emulador. Ao abrir o jogo de novo pelo Pegasus, ele já carrega esse estado (`--es saveStatePath`). Ao sair pela 1ª vez de um jogo, o metadata do Pegasus é atualizado sozinho. O NetherSX2 só consegue rodar um jogo por processo, por isso ele não fica pausado em segundo plano.
+- **Controles**: atalhos iguais para qualquer controle Bluetooth (Select+Start sai salvando; o botão Home/PS apaga e acende a tela, salvando o jogo) e mapeamento do PS2 refeito sozinho para o controle conectado (`scripts/controller-hotkeys.sh`).
 - **[DroidDeck](https://github.com/Droid-Deck/DroidDeck) 0.4.0** (Steam/Proton ARM64 no Android) instalado, com hash conferido e restrição de processos filhos do Android desligada. Suporte ao Adreno 650 é experimental (jogos DX11 leves).
 - **Pesquisa de ports nativos** (decompilação/recompilação, como 2 Ship 2 Harkinian, Dusklight, sm64coopdx e DevilutionX): rodam em ARM64 sem emulador e são preferíveis à emulação quando existem. O usuário fornece os arquivos do próprio jogo.
 
@@ -65,8 +66,11 @@ No caminho foram testados e descartados: desligar o HDCP, forçar criptografia, 
 
 Para preparação de mídias, organização de ROMs e otimização gráfica:
 
+As duas primeiras ainda **não foram testadas** neste projeto.
+
 - **[RetroForge](https://github.com/NookieAI/RetroForge) (NookieAI)**: aplicativo desktop portátil (Linux AppImage / Windows) com recurso *Card Perfect* em 1 clique: higieniza títulos, limpa nomes em caixa alta, baixa capas (*box art*) e metadados descriptografados em memória, e remove arquivos corrompidos direto no cartão SD.
 - **[Kura](https://github.com/NookieAI/kura) (NookieAI)**: gerenciador de bibliotecas PlayStation (PS1, PS2, PSP). Lê cabeçalhos reais de ISOs, PKGs e CSOs (identifica Title ID, SFO e versão sem depender do nome do arquivo) e permite transferência organizada pela rede local.
+- **[ARMSX2](https://github.com/ARMSX2/ARMSX2)**: fork do PCSX2 para ARM64, de código aberto (GPL-3.0) e em desenvolvimento ativo. **Testado e trocado pelo NetherSX2** neste aparelho: no Guitar Hero III, o ARMSX2 2.8.4 ficou entre 29% e 79% de velocidade, contra 99% de média no NetherSX2 2.2n (OpenGL e sem prender threads em núcleos). Vale testar de novo em versões futuras.
 - **Drivers Mesa Turnip (Adreno 650)**: para emuladores com suporte a driver Vulkan customizável (como Eden e NetherSX2-Turnip), o uso de builds recentes do Turnip entrega ganhos expressivos de estabilidade e renderização gráfica em comparação ao driver proprietário da Qualcomm.
 
 ## Próximos passos

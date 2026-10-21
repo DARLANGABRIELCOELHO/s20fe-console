@@ -1,5 +1,7 @@
 # Tudo em LF, também no Windows (core.autocrlf=true neste PC): os scripts vão para o
-# celular e o sh do Android quebra com CRLF.
+# celular e o sh do Android quebra com CRLF (o Git do Windows gravaria CRLF ao trocar de branch).
 * text=auto eol=lf
 *.png binary
 *.jpg binary
+# patches do kernel: aplicados com git am, ficam exatamente como foram gerados
+*.patch -text
