@@ -1,0 +1,6 @@
+id=s20fe-sem-tela
+name=S20FE sem tela
+version=1
+versionCode=1
+author=s20fe
+description=Deixa o Android iniciar com a placa sem a tela conectada (servicos de toque e LiveDisplay com /sys falso isolado; nada gravado no sistema).

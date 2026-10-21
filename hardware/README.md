@@ -643,3 +643,44 @@ O que vale para o projeto:
   são dois, um em cada lado da placa. **Fora do chassi esses contatos ficam soltos**: é o risco
   de antena já anotado acima. Achar os contatos de Wi-Fi da nossa placa pelas fotos, comparando
   com o manual, e testar.
+
+### Boot sem a tela: travava, resolvido com o módulo `s20fe-sem-tela` (2026-10-21)
+**Sintoma:** com a placa fora do chassi e a tela desconectada, o Android não terminava o boot.
+O `system_server` travava e o watchdog o matava a cada ~90 s ("Blocked in handler on main
+thread … 66s"); depois de vários ciclos, o aparelho reiniciava inteiro. O Wi-Fi nunca subia (ele
+depende do `system_server`), então nem o adb pela rede funcionava.
+
+**Causa:** o manifesto do vendor (`/vendor/etc/vintf/manifest.xml`) declara interfaces de HALs do
+LineageOS que só se registram quando o painel existe, e o `system_server` espera por elas sem
+limite (`ServiceManager.waitForDeclaredService` via `LineageHardwareManager`):
+1. `vendor.lineage.touch` (`IGloveMode`, `IHighTouchPollingRate`, `ITouchscreenGesture`): o
+   serviço só registra se `/sys/class/sec/tsp/cmd_list` listar os comandos (some sem o touch).
+   Trava em `InputMethodManagerService.updateTouchPollingRate`.
+2. `vendor.lineage.livedisplay` (`IDisplayColorCalibration`, `IDisplayModes`,
+   `ISunlightEnhancement`): precisam de `/sys/class/mdnie/mdnie/{sensorRGB,mode,outdoor}`. Trava em
+   `LiveDisplayService` / `DisplayHardwareController` (thread `android.display`), no fim do boot.
+
+**Tentativas descartadas:**
+- *Bind mount* de um manifesto sem o bloco do toque: o `servicemanager` lê o manifesto uma vez,
+  no início do boot (antes do Magisk), e não relê.
+- Reiniciar o `servicemanager` depois disso: reinicia o aparelho inteiro (`reboot,apexd-failed`).
+  Nada foi gravado; voltou ao estado anterior.
+
+**Solução (`magisk/s20fe-sem-tela/`, sem gravar partição nem alterar arquivo do sistema):** o
+`post-fs-data.sh` roda uma 2ª cópia de cada serviço **oficial** (binários do vendor, sem
+alteração) num espaço de montagem próprio (`busybox unshare -m --propagation private`), onde um
+`tmpfs` cobre `/sys/class/sec` (toque) ou `/sys/class` (LiveDisplay) com os arquivos falsos. O
+script confere no `/proc/self/mountinfo` que o `/sys` ficou privado antes de montar (sem isso o
+`tmpfs` vazaria para o sistema todo; o `/sys` global é `shared`). As cópias registram as
+interfaces que faltavam e o boot termina em ~60 s. O que o Android mandar para esses recursos
+(luva, polling alto, modos de cor) cai em arquivos sem efeito. Com a tela conectada, os
+arquivos reais existem e o script não faz nada. Log: `/data/local/tmp/s20fe-semtela.log`.
+Desfazer: `touch /data/adb/modules/s20fe-sem-tela/disable` e reiniciar.
+
+**Efeito colateral do loop:** o Magisk entrou em **modo de segurança** e desativou **todos os
+módulos** (arquivo `disable` em `s20fe-debloat` e `s20fe-no-launcher3`; o `su` saiu do PATH).
+Reativados à mão depois da correção. Se o aparelho voltar a entrar em loop, conferir isso.
+
+**Primeiro dado do teste de antenas (placa fora do chassi, sem tela):** Wi-Fi conectado na rede
+de 2,4 GHz (canal 11) com **−66 a −70 dBm**. Funciona, mas é fraco. Falta comparar com a placa
+no chassi na mesma posição e medir o Bluetooth (estava desligado nas configurações).
