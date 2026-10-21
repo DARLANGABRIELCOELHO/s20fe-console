@@ -130,7 +130,7 @@ Fontes de energia em `/sys/class/power_supply/`: `max77705-charger`, `max77705-f
 Tirar a placa-mãe do chassi intermediário e montá-la no case, com o dissipador **direto na
 blindagem do SoC** (lado da tela, onde está a pasta térmica, seção 2). É o único jeito de o
 dissipador tocar o chip sem plástico nem grafite no meio: a meta da seção 3 passa a ser fácil.
-- **Dissipador:** com contato direto, o cobre 5 × 5 cm + ventoinha já sobra para 6–9 W. O cooler
+- **Dissipador:** com contato direto, o cobre 45 × 45 × 30 mm + ventoinha já sobra para 6–9 W. O cooler
   de PC (ex.: Rise Mode X2, 95 W) também serve, mas preso no case com pressão leve e
   **nunca pendurado na placa** (placa de 0,8 mm + conectores de pressão). Pad ou pasta conforme a
   folga medida; a blindagem é GND, mas nenhum metal pode tocar componentes fora dela.
@@ -160,7 +160,7 @@ logo à frente do SoC.
 - **Contato:** tirar a tela também tira a folha de cobre/grafite colada atrás dela; limpar a
   cola, achar o ponto em frente ao SoC (marcar pela posição da blindagem vista de trás) e usar
   pasta térmica (superfície plana) ou pad de 0,5–1 mm. O chassi é de alumínio/magnésio e
-  conduz bem; o dissipador cobre uma área grande dele, então o cobre 5 × 5 cm já ajuda muito, e
+  conduz bem; o dissipador cobre uma área grande dele, então o cobre 45 × 45 mm já ajuda muito, e
   um dissipador maior (ex.: o do Rise Mode, preso no case) melhor ainda.
 - **Tirar a tela do S20 FE em geral a destrói** (AMOLED colado, solto com calor). Guardar o
   aparelho de emergência sem tela: recovery e modo Download continuam funcionando às cegas e
@@ -347,7 +347,7 @@ mais difícil e mais arriscado do projeto (erro na pinagem ou no VBUS = placa-m�
 
 ## 10. Resfriamento ativo: Pico 2 + ventoinha 80 mm + dissipador de cobre (2026-10-20)
 
-Material do usuário: **Raspberry Pi Pico 2** (RP2350), **dissipador de cobre 5 × 5 cm**,
+Material do usuário: **Raspberry Pi Pico 2** (RP2350), **dissipador de cobre 45 × 45 × 30 mm** (base 45 × 45, altura 30 com as aletas),
 **ventoinha 80 mm 12 V 0,1 A de 2 fios** (vermelho +, preto −; sem sensor de rotação, então o
 rpm fica sempre "-").
 
@@ -466,7 +466,7 @@ Pinos do Pico 2 pela numeração da placa (pino 1 = canto do conector USB, lado 
   (fica sobre a blindagem grande), com pad térmico de 1 mm. É a opção **B** da seção 4: o ganho
   é limitado pelo plástico + grafite no caminho, por isso medir **A1 (só ventoinha) e B (cobre +
   ventoinha)** com o mesmo protocolo e decidir pelo número.
-- **Peso:** cobre 50 × 50 com aletas passa fácil de 50 g. Não deixar pendurado no celular: o
+- **Peso:** o cobre de 45 × 45 × 30 mm deve passar de 100 g (maciço desse tamanho daria ~540 g; com aletas, uma fração disso). Pesar antes de decidir a fixação. Não deixar pendurado no celular: o
   case (ou um elástico/abraçadeira leve) segura o dissipador contra a tampa; a tampa segura os
   conectores de pressão e não deve receber força.
 - **Ventoinha:** a 1–3 cm do dissipador, soprando contra as aletas. O centro (motor) de uma
