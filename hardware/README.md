@@ -546,3 +546,100 @@ O que as fotos mostram:
   (4G e GPS não). Falta descobrir quais contatos são do Wi-Fi/BT.
 - **Botões:** o flex dos botões laterais ficou no chassi (lado esquerdo na foto da traseira).
   Falta ver como ele se liga à placa.
+
+### Medidas pelas fotos de 2026-10-21
+Fotos `hardware/fotos/2026-10-21-*.jpg`. **A escala foi validada com o Pico 2**, que tem medida
+oficial (51 × 21 mm): na foto ele dá ~52 × 21 mm. Fotos seguradas na mão (HDMI) não servem para
+medir.
+
+**Correção (2026-10-21):** nas fotos do hub a folha inteira aparece, as linhas de 5 mm quase somem e
+a escala automática pegou direto a linha de 10 mm; ela foi dobrada por engano e o hub saiu com
+metade do tamanho (~71 mm). Com a escala certa (~7 px/mm) a foto dá ~13,5 × 2,9 cm, coerente com
+a régua do usuário (12,8 × 2,8 × 1 cm). **Regra:** sempre conferir qual linha é a de 10 mm
+contando as finas num recorte ampliado, e conferir com uma medida conhecida.
+
+| Peça | Medida | Observação |
+|---|---|---|
+| Bateria EB-BG781ABY | **máx. 6 × 63 × 76 mm** | pelo código da etiqueta **1ICP6/63/76** (norma IEC: espessura/largura/comprimento máximos); foto: ~61 × 73. `concept.scad` atualizado |
+| Raspberry Pi Pico 2 | 51 × 21 mm (oficial) | furos M2 nos cantos; micro-USB numa ponta |
+| Hub ZEN1, corpo | **128 × 28 × 10 mm** | medido com régua pelo usuário (2026-10-21), sem o cabo. **Vai com a carcaça** de alumínio. Portas num lado comprido (SD, microSD, 3 × USB-A, USB-C de energia, LED) e HDMI numa ponta |
+| Hub ZEN1, cabo | ~73 mm de cabo + ~36 mm de plugue (com a capa) | pela foto, tomando o corpo de 128 mm como régua; ~24 cm no total. O cabo **não** pode ser cortado (seção 9) |
+
+**Botões laterais (foto do chassi sem a placa):** o power e o volume são teclas de metal do
+chassi apertando um **flex laranja com contatos dourados**, colado na lateral; a ponta do flex
+encosta por **pressão** em contatos da placa-mãe (não é conector). Caminhos para o case:
+1. descolar esse flex do chassi com cuidado e fazer o case **apertá-lo contra a placa** no mesmo
+   ponto, com teclas impressas em 3D por cima das cúpulas (sem solda, reversível);
+2. soldar fios finos nos contatos da placa até botões no case (mais firme, exige solda fina).
+**Contatos achados (2026-10-21, fotos `-flex-botoes-chassi.jpg` e `-placa-molas-botoes.jpg`):** o
+flex dos botões termina numa área com **5 contatos dourados redondos** (1 em cima, 2 no meio,
+2 embaixo), e a placa-mãe tem, no canto ao lado de um furo de parafuso, **5 molas de contato** no
+mesmo arranjo (1 mola em pé + 4 molas em 2 × 2, com as marcas "8G" e "6G" na placa). É ligação só
+por pressão, sem conector. Os 5 sinais devem ser power, volume +, volume −, GND e mais um (a
+confirmar). Caminhos sem solda na placa do celular:
+1. **Reaproveitar o flex original:** descolar do chassi e o case o aperta contra as 5 molas; teclas
+   impressas em 3D por cima das cúpulas do flex.
+2. **Plaquinha própria de contato:** 5 ilhas de cobre (placa perfurada ou PCB simples) no lugar do
+   flex, com 3 botões de toque (*tact switch*) fechando cada sinal com o GND, apertada pelo case
+   contra as molas. Antes, descobrir com o multímetro (modo continuidade, celular desligado e sem
+   bateria) qual contato do flex é o GND e qual fecha com ele ao apertar cada tecla.
+Distâncias aproximadas entre as molas: ~4 mm na horizontal e ~2 mm na vertical (estimadas pelo
+tamanho do anel do furo; **medir com paquímetro** antes de fazer a plaquinha).
+
+### Perfis e placas separadas (2026-10-21)
+Fotos `2026-10-21-placas-separadas.jpg`, `-placa-perfil*.jpg`, `-subplaca-perfil-usbc.jpg`.
+- **O flex MAIN–SUB solta dos dois lados** (conectores placa-a-placa): placa e subplaca podem ser
+  montadas separadas e ligadas por último. Se o case pedir outro comprimento, existe flex
+  principal de reposição (conferir que seja do G780G/G781B).
+- **Contorno com as placas deitadas** (13,8 px/mm): placa-mãe ~62–65 × 52–54 mm; subplaca
+  ~44 × 23–25 mm (as sombras aumentam um pouco a medida de cima para baixo).
+- **Espessuras pelo perfil** (peça segurada na mão, mais perto da câmera que o papel: a escala vem
+  da própria peça, não da grade):
+  - placa-mãe com as blindagens dos dois lados: **~3–4 mm**; até **~5 mm** na região dos
+    conectores e do leitor de SIM. A faixa da placa de circuito aparece com ~0,8 mm.
+  - subplaca na USB-C: **~3,3–3,5 mm**. O conector é do tipo que atravessa a placa (*mid-mount*);
+    a proporção da foto bate com o tamanho padrão do receptáculo USB-C (8,94 × 3,26 mm, ~7,4 mm
+    de profundidade).
+- `hardware/case/concept.scad` atualizado: placa 64 × 53 mm, blindagem de 1,6 mm de cada lado,
+  pad de 0,5 mm (o dissipador agora apoia na blindagem do SoC), subplaca 44 × 23 mm e o bloco da
+  USB-C com as medidas padrão. **Não renderizado** (sem OpenSCAD neste PC); folgas conferidas na
+  conta: topo do dissipador a 45,9 mm e ventoinha a 54,6 mm (8,7 mm livres).
+- Para as peças de encaixe ainda vale o paquímetro: espessura exata da pilha da placa e altura
+  dos conectores que encostam no case.
+
+### Manual de serviço do SM-G780F (fornecido pelo usuário em 2026-10-21)
+O usuário enviou o *Service Manual* do **SM-G780F** (Exynos 990, rev. 1.0, 2020-08). O documento
+é marcado como confidencial da Samsung: **não vai para o repositório** (que está no GitHub); aqui
+ficam só as informações úteis ao projeto.
+
+**Cuidado com o modelo:** o nosso é o **SM-G780G (Snapdragon 865)**. O chassi, os cabos flexíveis
+e a parte mecânica são os mesmos (a foto do manual mostra o mesmo flex "SM-G781B CTC" do nosso
+aparelho), mas a **placa-mãe é outra**: processador, posição dos chips e códigos dos componentes
+(U…, ANT…, C…) do manual **não valem** para a nossa placa. Usar só como referência de arranjo.
+
+O que vale para o projeto:
+- **Lado do processador:** no G780F, o processador (UCP5000) fica no **mesmo lado do leitor de
+  SIM**. Na nossa placa, o lado do leitor de SIM é o da grafite com a marca de pasta (foto
+  `2026-10-21-placas-separadas.jpg`), o que confirma: **o SoC fica do lado da tela**, sob a
+  blindagem grande. A lista de peças mostra que a blindagem do processador (SC7003) tem um
+  material térmico próprio ("NANOTIM"): o calor já é levado do chip até a tampa da blindagem,
+  então o dissipador em cima dela funciona.
+- **Fixação:** a placa-mãe fica presa no chassi por **1 parafuso** e a subplaca por **1 parafuso**
+  (o resto são os 16 parafusos da tampa). A placa-mãe tem **7 conectores** e a subplaca **5**. Os
+  furos metalizados da placa ("BOTHHOLE") são os pontos naturais para os espaçadores do case.
+- **Tela:** liga no conector de 78 pinos (HDC10000 no G780F). O fluxograma "não liga" do manual
+  só pede a tela para o diagnóstico de imagem: confirma que ela não é necessária para ligar.
+- **Bateria:** o aparelho só liga com a bateria acima de **3,5 V**. O manual manda aquecer o
+  aparelho a **60–70 °C por 5–10 min** antes de soltar as peças coladas (60 °C se a bateria
+  estiver acima de 68%). Para tirar a bateria: carga baixa, calor brando e uniforme, nunca
+  alavancar a célula.
+- **Botões:** o fluxograma "não liga" diz para conferir se, ao apertar o power, o **contato do
+  flex fecha curto**. Ou seja, cada tecla só liga um sinal ao GND. Isso confirma a ideia da
+  **plaquinha com botões de toque** (seção 11): cada botão fecha o seu contato com o GND. No
+  diagrama de blocos, o volume vai ao processador e o power vai ao PMIC.
+- **Antenas:** a parte de cima da tampa traseira é a **"SUB ANT"** (antena de diversidade), e a de
+  baixo, a antena de NFC/MST/carga sem fio, com um conector na placa. O Wi-Fi e o Bluetooth usam
+  **contatos de mola (C-clips) na borda da placa** que encostam nas antenas do chassi; no G780F
+  são dois, um em cada lado da placa. **Fora do chassi esses contatos ficam soltos**: é o risco
+  de antena já anotado acima. Achar os contatos de Wi-Fi da nossa placa pelas fotos, comparando
+  com o manual, e testar.

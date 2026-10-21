@@ -16,13 +16,15 @@ floor_t = 2.4;
 corner_r = 3;
 
 // Components from the photo survey (mm).
-board_size = [63, 51, 0.8];
+board_size = [64, 53, 0.8]; // PCB only; outline 62-65 x 51-54 in the photos (2026-10-20/21)
+shield_h = 1.6; // per side; side photos give a 3-5 mm stack (PCB + shields), not yet measured
+pad_t = 0.5;    // thermal pad/paste between the SoC shield and the heatsink
 board_origin = [13.5, 108];
-sub_size = [43, 22, 1.0];
+sub_size = [44, 23, 1.0];
 sub_origin = [23.5, 5];
 flex_size = [18, 81, 0.3];
 flex_origin = [36, 27];
-battery_size = [61, 73, 8]; // thickness is an estimate; measure the replacement cell
+battery_size = [63, 76, 6]; // max cell size from the label code 1ICP6/63/76 (6 x 63 x 76 mm); photo: ~61 x 73
 battery_origin = [14.5, 31];
 
 // Cooling placeholders (mm).
@@ -41,6 +43,7 @@ board_z = 13;
 battery_z = 4.2;
 flex_z = battery_z + battery_size[2] + 0.3;
 sub_z = board_z;
+sink_z = board_z + board_size[2] + shield_h + pad_t; // heatsink sits on the SoC shield
 fan_cx = case_w / 2;
 fan_cy = soc_xy[1];
 fan_z = body_d - fan_t;
@@ -124,8 +127,11 @@ module board_mockup() {
     // Rectangular envelope only; the production PCB is an irregular U shape.
     translate([board_origin[0], board_origin[1], board_z]) {
         color([0.03, 0.32, 0.28]) cube(board_size);
+        // SoC shield on the screen side (up, under the heatsink) and back-side parts below.
         color([0.18, 0.19, 0.20])
-            translate([8, 8, board_size[2]]) cube([46, 29, 0.8]);
+            translate([8, 8, board_size[2]]) cube([46, 29, shield_h]);
+        color([0.6, 0.6, 0.62])
+            translate([8, 8, -shield_h]) cube([46, 29, shield_h]);
     }
 }
 
@@ -138,9 +144,10 @@ module battery_mockup() {
 module subboard_mockup() {
     color([0.03, 0.32, 0.28])
         translate([sub_origin[0], sub_origin[1], sub_z]) cube(sub_size);
-    // Connector block at the lower edge, aligned with the case opening.
+    // USB-C receptacle (standard 8.94 x 3.26 mm shell, ~7.4 mm deep), mid-mount through the PCB,
+    // aligned with the case opening.
     color([0.68, 0.68, 0.7])
-        translate([case_w/2 - 4.5, 2.4, sub_z - 1]) cube([9, 5, 4]);
+        translate([case_w/2 - 4.5, 2.4, sub_z + sub_size[2]/2 - 1.65]) cube([9, 7.4, 3.3]);
 }
 
 module flex_mockup() {
@@ -151,12 +158,12 @@ module flex_mockup() {
 module heatsink_mockup() {
     color([0.72, 0.39, 0.16]) {
         translate([soc_xy[0] - sink_xy[0]/2,
-                   soc_xy[1] - sink_xy[1]/2, board_z + board_size[2]])
+                   soc_xy[1] - sink_xy[1]/2, sink_z])
             cube([sink_xy[0], sink_xy[1], sink_base_t]);
         for (i = [0:13])
             translate([soc_xy[0] - sink_xy[0]/2 + 1.5 + i*3.1,
                        soc_xy[1] - sink_xy[1]/2 + 2,
-                       board_z + board_size[2] + sink_base_t])
+                       sink_z + sink_base_t])
                 cube([1.4, sink_xy[1] - 4, sink_h - sink_base_t]);
     }
 }
