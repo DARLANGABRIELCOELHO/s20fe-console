@@ -21,6 +21,33 @@ Lista de melhorias e projetos para avaliar no console. Os itens abaixo são prop
 - `Start + Select`: fechar o jogo atual.
 - `Start + Select + R1 + L1`: abrir as configurações do emulador.
 
+## Anotações
+
+Toda a pesquisa (detalhes e fontes) fica em [pesquisas/](pesquisas/README.md).
+
+- 2026-10-22: existe uma cena grande de "box DeX" (Vietnã e Brasil); o S20 FE já aparece em gabinetes brasileiros.
+- 2026-10-22: ligar sozinho ao receber energia é viável no S20 FE (modo `charger` confirmado no código). Usar a ideia do `magisk-autoboot` no nosso boot, **não o módulo pronto**.
+- 2026-10-22: sem bateria só se a bateria degradar; Peltier continua descartado.
+- 2026-10-22: o ETA Prime fez um mini PC com um S20 FE de tela quebrada (NetherSX2 a 2x com quedas, cooler evita throttling).
+- 2026-10-22: com o Chrome do usuário, li Reddit, XDA e Clube do Hardware. O `magisk-autoboot` **já funcionou num S20 FE G780G/DS** (XDA) e num S10e com LineageOS 20.
+- 2026-10-22: sem bateria, os fóruns usam a placa de proteção (BMS) original + ~4 V regulados; cuidado com a % caindo a 0.
+
+## Próximos passos
+
+1. **Ligar sozinho ao conectar a energia:**
+   - [x] Ler o módulo [magisk-autoboot](https://github.com/Magisk-Modules-Alt-Repo/magisk-autoboot).
+   - [x] Confirmar como o S20 FE entra no modo de carga.
+   - [ ] Ter neste PC o boot atual + samloader (caminho de volta).
+   - [ ] Testar no aparelho (com confirmação na hora).
+   - [ ] Decidir o "desligar de verdade" com a fonte ligada.
+   - [ ] Definir o mínimo de bateria para ligar.
+   - [ ] No teste, conferir se com o sistema ligado o carregador continua sendo detectado (problema relatado no XDA).
+2. **Gabinete:** comparar o nosso case com os gabinetes brasileiros.
+3. **Sem bateria** (só se a bateria degradar): pinagem do conector e valor do termistor do S20 FE.
+4. **Modo desktop:** testar "Forçar modo desktop" no LineageOS 23.2.
+5. **4PDA:** página 1 do guia lida (arquivo salvo em `pesquisas/`); faltam as outras 34 páginas e o tópico 499874, se valer a pena.
+6. **ETA Prime:** acompanhar o vídeo da montagem completa do S20 FE, quando sair (case, cooler, alimentação).
+
 ## Integrações possíveis
 
 - [NookieAI](https://github.com/NookieAI)
@@ -59,3 +86,7 @@ Lista de melhorias e projetos para avaliar no console. Os itens abaixo são prop
 - [AdrenoToolsDrivers](https://github.com/K11MCH1/AdrenoToolsDrivers/releases)
 - [Adreno-Tools-Drivers](https://github.com/StevenMXZ/Adreno-Tools-Drivers/releases)
 - [Mesa Turnip Android Driver](https://github.com/nihui/mesa-turnip-android-driver)
+
+## Pesquisa técnica
+
+- [Arquitetura de processadores: fundamentos e aplicação ao S20 FE](pesquisas/arquitetura-de-processadores.md)
