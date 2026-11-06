@@ -706,3 +706,44 @@ no chassi na mesma posição e medir o Bluetooth (estava desligado nas configura
   soltos para simplificar o case. Wi-Fi/BT usam os contatos de mola da placa e o cabo azul.
 - **adb pela rede:** a rede "Bar do Marcao" isola os clientes (o celular chega ao roteador e à
   internet, mas não ao PC); não serve para o adb pelo Wi-Fi.
+
+### Inventário das peças (foto de 2026-10-23)
+Foto `hardware/fotos/2026-10-23-inventario.jpg`, de cima, sobre papel milimetrado. Escala
+~6,35 px/mm, conferida com o Pico 2 (51 mm → ~51 mm) e com o hub ZEN1 (128 mm → ~129 mm).
+Medidas com **±1–2 mm**; alturas não saem da foto.
+
+| Peça | Medida pela foto | Observação |
+|---|---|---|
+| Placa-mãe + subplaca USB-C | ligadas pelo flex principal | lado da **tela** para cima: blindagem do SoC com grafite e a marca da pasta no meio. Só o coaxial **azul** continua (os de 4G saíram) |
+| Bateria EB-BG781ABY | ~63 × 80 mm (código 1ICP6/63/76) | solta do chassi, com o flex laranja; superfície **enrugada** (ver abaixo) |
+| Raspberry Pi Pico 2 | 51 × 21 mm | |
+| Dissipador **GIGABYTE** (aletas altas) | corpo ~46 × 45 mm; ~52 mm com as orelhas | é o "45 × 45 × 30" da seção 10; orelhas com furo em cantos opostos |
+| Dissipador pequeno (aletas finas) | corpo ~31 × 33 mm; ~42 mm com as orelhas | de chipset; orelhas com furo em cantos opostos |
+| Ventoinha 8025 | 80 × 80 mm | 12 V 0,1 A, 2 fios |
+| Hub ZEN1 | ~129 × 29 mm, com o cabo | |
+
+- **Dissipadores — cobre ou alumínio?** O dourado é o do alumínio anodizado que a Gigabyte usava
+  nos dissipadores de chipset; podem **não** ser de cobre. Conferir: na balança, o corpo de
+  45 × 45 × 30 mm com aletas em cobre deve passar de ~150 g, em alumínio fica perto de ~50–70 g
+  (estimativa); ou raspar um canto escondido (alumínio aparece prateado). Para 6–9 W com
+  ventoinha, alumínio serve e é mais leve (menos força na placa).
+- **Encaixe:** a blindagem do SoC tem ~46 × 29 mm. O GIGABYTE a cobre inteira e passa ~15 mm para
+  fora num dos lados: apoiar o pad só na blindagem e isolar com Kapton onde a base passar sobre
+  outros componentes. O pequeno cabe quase só na blindagem. Ideia (r/SamsungDex,
+  `pesquisas/foruns-e-comunidades.md`, 6.3): **GIGABYTE no lado da tela (SoC) e o pequeno no lado
+  de trás** (as duas blindagens com pasta cinza), presos pelas orelhas com parafuso + mola no
+  case; a pressão dos dois lados se equilibra e nada fica pendurado na placa.
+- **Bateria:** a foto de cima não mostra inchaço nem se as rugas são só cola/película ou vincos no
+  invólucro. Antes de religar: apoiar numa superfície plana (não pode balançar), espessura até
+  6 mm, sem ponto mole, sem vinco no alumínio, sem cheiro nem calor. Na dúvida, **bateria nova**
+  (ou a rota sem bateria com a placa de proteção dela, `pesquisas/alimentacao-sem-bateria.md`).
+  Enquanto isso, guardar longe de material inflamável.
+- **Botões:** o flex do power/volume ficou no chassi, que não está na foto. Sem ele, desligado o
+  aparelho só volta com o "ligar ao conectar" (`pesquisas/ligar-ao-conectar.md`), e recovery e
+  modo Download (Vol+ e Vol−) só pelo adb. Para ter a rede de segurança, fazer a plaquinha de 3
+  botões nas 5 molas (acima); o esquema da Samsung (`hardware/fotos/`) deve mostrar qual mola é
+  power, volume e GND.
+- **Faltam:** transistor BC337/2N2222 (ou MOSFET AO3400/IRLZ44N), resistores 1 kΩ e 10 kΩ, diodo
+  1N5819 e cabo micro-USB curto (ventoinha, seção 10); pad térmico 0,5–1 mm ou pasta, Kapton,
+  álcool isopropílico; parafusos, molas e espaçadores; 3 botões de toque + placa perfurada; fonte
+  USB-C PD de verdade; paquímetro; o case impresso (PETG/ASA). Opcionais: MT3608 (12 V), NTC 10 k.

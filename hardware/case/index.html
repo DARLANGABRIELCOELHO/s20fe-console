@@ -1,0 +1,578 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<title>Uno bloco 3D</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: palco 3D ocupando a tela + painel de oficina à direita (embaixo no celular). */
+:root {
+  --bg: #E7ECEF;
+  --panel: #F5F7F8;
+  --ink: #14202A;
+  --muted: #586773;
+  --line: #CBD4DA;
+  --accent: #1C7DA5;
+  --accent-ink: #FFFFFF;
+  --accent-soft: #D6EAF2;
+  --warn: #A9561A;
+  --warn-soft: #F6E3D3;
+  --stage-a: #F1F4F6;
+  --stage-b: #CCD6DD;
+  --grid-a: #8FA0AC;
+  --grid-b: #B4C1CA;
+  --font-display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0E1316; --panel: #151C20; --ink: #E2E9ED; --muted: #8E9CA6; --line: #28343B;
+    --accent: #4DAFD6; --accent-ink: #06141A; --accent-soft: #15303B; --warn: #E59B57; --warn-soft: #3A2716;
+    --stage-a: #1B242A; --stage-b: #0C1013; --grid-a: #3E4E58; --grid-b: #253139;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0E1316; --panel: #151C20; --ink: #E2E9ED; --muted: #8E9CA6; --line: #28343B;
+  --accent: #4DAFD6; --accent-ink: #06141A; --accent-soft: #15303B; --warn: #E59B57; --warn-soft: #3A2716;
+  --stage-a: #1B242A; --stage-b: #0C1013; --grid-a: #3E4E58; --grid-b: #253139;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 14px; line-height: 1.5; }
+.app { display: grid; grid-template-columns: minmax(0, 1fr) 360px; height: 100%; }
+.stage { position: relative; min-width: 0; overflow: hidden; background: radial-gradient(120% 90% at 50% 20%, var(--stage-a), var(--stage-b)); }
+#c { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+#c:active { cursor: grabbing; }
+.stage-head { position: absolute; left: max(20px, calc(env(safe-area-inset-left, 0px) + 12px)); top: 18px; pointer-events: none; }
+.stage-head h1 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 34px; line-height: 1; letter-spacing: 0.01em; text-wrap: balance; }
+.stage-head p { margin: 6px 0 0; font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.viewbar { position: absolute; right: 16px; top: 16px; display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; max-width: calc(100% - 32px); }
+.hint { position: absolute; left: max(20px, calc(env(safe-area-inset-left, 0px) + 12px)); bottom: 14px; font-size: 12px; color: var(--muted); pointer-events: none; }
+.tag { position: absolute; padding: 3px 8px; border-radius: 4px; background: var(--ink); color: var(--bg); font-size: 12px; font-weight: 500; pointer-events: none; white-space: nowrap; transform: translate(12px, -28px); }
+.loading { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--font-mono); font-size: 13px; color: var(--muted); pointer-events: none; }
+.btn { appearance: none; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: 500 12.5px/1 var(--font-body); padding: 8px 11px; border-radius: 6px; cursor: pointer; }
+.btn:hover { border-color: var(--accent); }
+.btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn:focus-visible, input:focus-visible, .row:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.panel { background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; min-width: 0;
+  padding-block: 4px 24px; padding-left: max(18px, env(safe-area-inset-left, 0px)); padding-right: max(18px, env(safe-area-inset-right, 0px)); }
+.block { padding-block: 16px; border-bottom: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+.block:last-child { border-bottom: 0; }
+.eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.ctl { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 6px 10px; }
+.ctl label { font-weight: 500; }
+.ctl output { font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.ctl input[type="range"] { grid-column: 1 / -1; width: 100%; accent-color: var(--accent); margin: 0; }
+.seg { display: flex; gap: 6px; }
+.seg .btn { flex: 1; }
+.check { display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer; }
+.check input { accent-color: var(--accent); width: 16px; height: 16px; margin: 0; }
+
+.card h2 { margin: 0; font-family: var(--font-display); font-weight: 600; font-size: 24px; line-height: 1.1; text-wrap: balance; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--font-mono); font-size: 11px; padding: 2px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.chip.impressa { background: var(--accent-soft); border-color: transparent; color: var(--ink); }
+.chip.medir { background: var(--warn-soft); border-color: transparent; color: var(--warn); }
+.card p { margin: 0; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 13px; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; min-width: 0; }
+.kv dd.warn { color: var(--warn); }
+
+.group { display: flex; flex-direction: column; gap: 2px; }
+.group-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-block: 4px; }
+.group-head .count { font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.row { display: flex; align-items: center; gap: 9px; width: 100%; text-align: left; border: 0; background: none; color: var(--ink); font: 400 13px/1.35 var(--font-body); padding: 5px 6px; border-radius: 5px; cursor: pointer; }
+.row:hover { background: var(--accent-soft); }
+.row[aria-current="true"] { background: var(--accent-soft); font-weight: 600; }
+.sw { flex: none; width: 12px; height: 12px; border-radius: 3px; border: 1px solid rgba(0,0,0,0.25); }
+.row .m { margin-left: auto; font-family: var(--font-mono); font-size: 10.5px; color: var(--warn); }
+.row.off { opacity: 0.45; }
+details summary { cursor: pointer; font-size: 13px; color: var(--muted); padding: 4px 6px; }
+
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+td { padding: 6px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+td:first-child { font-family: var(--font-mono); font-size: 12px; white-space: nowrap; padding-right: 10px; font-variant-numeric: tabular-nums; }
+tr:last-child td { border-bottom: 0; }
+ul.plain { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 4px; }
+.note { font-size: 13px; color: var(--muted); margin: 0; }
+.err { color: var(--warn); }
+
+@media (max-width: 860px) {
+  html, body { height: auto; }
+  .app { display: flex; flex-direction: column; height: auto; }
+  .stage { height: 62svh; min-height: 340px; }
+  .panel { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+  .stage-head h1 { font-size: 28px; }
+  .viewbar { top: auto; bottom: 12px; right: 12px; }
+  .hint { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+
+<div class="app">
+  <section class="stage" id="stage" aria-label="Modelo 3D do Uno bloco">
+    <canvas id="c"></canvas>
+    <div class="stage-head">
+      <h1>Uno bloco</h1>
+      <p>conceito v0 · 100 × 100 × 76 mm</p>
+    </div>
+    <div class="viewbar" role="group" aria-label="Vistas">
+      <button class="btn" type="button" data-view="iso" aria-pressed="true">3/4</button>
+      <button class="btn" type="button" data-view="frente" aria-pressed="false">Frente</button>
+      <button class="btn" type="button" data-view="lado" aria-pressed="false">Lado</button>
+      <button class="btn" type="button" data-view="cima" aria-pressed="false">Cima</button>
+      <button class="btn" type="button" id="girar" aria-pressed="false">Girar</button>
+    </div>
+    <div class="hint">Arraste para girar · role para aproximar · clique numa peça</div>
+    <div class="tag" id="tag" hidden></div>
+    <div class="loading" id="loading">Carregando o modelo…</div>
+  </section>
+
+  <aside class="panel">
+    <div class="block">
+      <div class="ctl">
+        <label for="explode">Explodir</label>
+        <output id="explode-out" for="explode">60%</output>
+        <input type="range" id="explode" min="0" max="100" value="60">
+      </div>
+      <div class="seg">
+        <button class="btn" type="button" id="montado">Montado</button>
+        <button class="btn" type="button" id="explodido">Explodido</button>
+      </div>
+      <label class="check"><input type="checkbox" id="corte-on"> Cortar ao meio</label>
+      <div class="ctl" id="corte-ctl" hidden>
+        <label for="corte">Posição do corte</label>
+        <output id="corte-out" for="corte">no SoC</output>
+        <input type="range" id="corte" min="-50" max="50" step="0.5" value="-17">
+      </div>
+    </div>
+
+    <div class="block card" id="card" aria-live="polite">
+      <div class="eyebrow">Peça selecionada</div>
+      <h2 id="card-nome">Bandeja</h2>
+      <div class="chips" id="card-chips"></div>
+      <p id="card-desc"></p>
+      <dl class="kv">
+        <dt>Prende com</dt><dd id="card-fixa"></dd>
+        <dt id="card-medir-k">Medir</dt><dd id="card-medir" class="warn"></dd>
+      </dl>
+    </div>
+
+    <div class="block">
+      <div class="eyebrow">Peças</div>
+      <div id="grupos"></div>
+    </div>
+
+    <div class="block">
+      <div class="eyebrow">Parafusos e afins</div>
+      <table>
+        <tr><td>4 × M3 × 10</td><td>bandeja nas colunas da base</td></tr>
+        <tr><td>4 × M4 × 20</td><td>pés, base e ventoinha, com porca</td></tr>
+        <tr><td>2 × M3 × 30</td><td>ponte do dissipador, com mola e porca</td></tr>
+        <tr><td>2 + 2</td><td>espaçadores de nylon M3 de 18 mm (XL4015) e 10 mm (INA226)</td></tr>
+        <tr><td>4 × M3 × 6</td><td>escareados, por cima da bandeja nos espaçadores</td></tr>
+        <tr><td>4 × M3 × 5</td><td>módulos nos espaçadores, por baixo</td></tr>
+        <tr><td>3 × M2 × 5</td><td>placa do celular (mais 1 × M3 × 6 no furo grande)</td></tr>
+      </table>
+      <p class="note">Os módulos pequenos não levam parafuso: encaixam em bolsas com travinha.</p>
+    </div>
+
+    <div class="block">
+      <div class="eyebrow">Para imprimir</div>
+      <ul class="plain">
+        <li>PETG, camada de 0,2 mm, 3 paredes, 20% de preenchimento, sem suporte.</li>
+        <li>Cada peça já sai deitada do jeito certo: base, bandeja, ponte e os 4 pés.</li>
+        <li>Volume das peças: 65,6 cm³. Dá cerca de 60 a 70 g de filamento.</li>
+        <li>M3 entra direto no plástico (furo de 2,6 mm). Para inserto de latão, troque para 4,0 mm no arquivo.</li>
+      </ul>
+    </div>
+
+    <div class="block">
+      <div class="eyebrow">Medir antes de imprimir</div>
+      <ul class="plain">
+        <li>Furos da placa do celular e altura da blindagem do SoC</li>
+        <li>Subplaca USB-C (desenhada com 44 × 23 mm) e onde fica o conector do flex</li>
+        <li>Plaquinha da bateria (34 × 6 mm)</li>
+        <li>Furos do XL4015 e do INA226</li>
+        <li>Os dois dissipadores</li>
+        <li>Furo do jack P4 (8 mm)</li>
+        <li>Se as molas K1–K5 são mesmo as teclas</li>
+      </ul>
+      <p class="note">Tudo isso é variável no começo do uno-bloco.scad. Muda o número e exporta de novo.</p>
+    </div>
+  </aside>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script>
+(() => {
+  // ---------------------------------------------------------------- dados das peças
+  // ex = deslocamento (mm, para cima) quando explodido
+  const P = (nome, tipo, cor, ex, desc, fixa, medir, mat) => ({ nome, tipo, cor, ex, desc, fixa, medir: medir || '', mat: mat || {} });
+  const METAL = { metalness: 0.6, roughness: 0.38 };
+  const META = {
+    bandeja: P('Bandeja', 'Impressa', '#2F93BF', 0,
+      'A peça principal. A placa do celular fica em 4 espaçadores; a subplaca e os módulos encaixam em bolsas com travinha; os capacitores ficam em berços e a plaquinha dos botões desliza nos trilhos da frente. Tem janela para o dissipador, furos de ventilação e passagens de fio.',
+      '4 parafusos M3 × 10 no topo das colunas da base'),
+    base: P('Base da ventoinha', 'Impressa', '#226F94', -48,
+      'Placa de baixo com a boca de ar e uma grade de proteção, mais 4 colunas que seguram a bandeja. A ventoinha fica entre as colunas; as laterais ficam abertas para o ar sair pelo dissipador.',
+      'Recebe os 4 M3 da bandeja, direto no plástico ou em inserto de latão'),
+    ponte: P('Ponte do dissipador', 'Impressa', '#4FB2DC', -14,
+      'Barra embaixo do dissipador. As molas em cima da bandeja puxam a ponte para cima e apertam o dissipador contra o SoC.',
+      '2 parafusos M3 × 30, mola por cima da bandeja e porca presa na ponte'),
+    pes: P('Pés (4)', 'Impressa', '#1B5877', -72,
+      'Deixam 6 mm de vão embaixo para a ventoinha puxar ar. Dá para trocar por pés de borracha.',
+      'Os mesmos 4 M4 × 20 da ventoinha'),
+
+    ref_ventoinha: P('Ventoinha 80 × 25 mm', 'Comprada', '#2C2F33', -27,
+      'Puxa ar por baixo e sopra para cima, direto nas aletas do dissipador. A etiqueta fica virada para cima.',
+      '4 M4 × 20 pelos pés e pela base, com porca dentro da aba da ventoinha', '', { roughness: 0.7 }),
+    ref_dissipador: P('Dissipador do SoC', 'Comprada', '#C4CACF', -5,
+      'Aletas para baixo. O topo passa pela janela da bandeja e encosta no SoC com pasta térmica.',
+      'Apertado para cima pela ponte', 'Desenhado com 38 × 30 × 18 mm', METAL),
+    ref_pinos: P('Dissipador de pinos', 'Comprada', '#C4CACF', 44,
+      'Atrás do SoC, sobre um pad térmico. Fica afastado do conector do flex.',
+      'Pad térmico; a tampa do case segura por cima', 'Desenhado com 38 × 24 × 13 mm', METAL),
+
+    ref_celular: P('Placa do S20 FE', 'Do celular', '#1E4A3A', 24,
+      'De tela para baixo, 2,4 mm acima da bandeja. O contorno vem do layout do SM-G781B, que usa o mesmo chassi.',
+      '1 M3 no furo grande e 3 M2 nos outros furos, nos espaçadores', 'Conferir os furos no G780G', { roughness: 0.55 }),
+    ref_cel_soc: P('SoC (blindagem)', 'Do celular', '#1A1B1D', 24,
+      'O Snapdragon 865 fica virado para baixo, em cima do dissipador.', 'Faz parte da placa', 'Altura da blindagem (1,6 mm)'),
+    ref_cel_blindagem: P('Blindagem de trás', 'Do celular', '#A7ADB2', 24,
+      'A blindagem do lado de cima, onde apoia o dissipador de pinos.', 'Faz parte da placa', '', METAL),
+    ref_cel_conectores: P('Conectores e molas', 'Do celular', '#C9A13B', 24,
+      'HDC10000 (flex C-to-C) e SOC7000 (bateria) ficam do lado de cima. As molas K1–K5 ficam por baixo e encostam numa ilha da bandeja com fita de cobre e fio.',
+      'Faz parte da placa', 'Confirmar no multímetro se as molas são as teclas', METAL),
+    ref_subplaca: P('Subplaca USB-C', 'Do celular', '#1E4A3A', 10,
+      'Encaixa na bolsa de trás com o USB-C saindo pela parede. É por ela que o hub liga.',
+      'Bolsa com travinha', 'Desenhada com 44 × 23 mm', { roughness: 0.55 }),
+    ref_sub_conectores: P('USB-C e conector do flex', 'Do celular', '#B9BEC3', 10,
+      'O USB-C fica no meio da borda de trás da subplaca.', 'Soldados na subplaca', 'Posição do conector do flex', METAL),
+    ref_flex: P('Flex C-to-C', 'Do celular', '#D9902C', 24,
+      'Tem uns 81 mm livres e aqui precisa de uns 20. A sobra fica numa dobra larga; não vincar.',
+      'Encaixa no HDC10000 e na subplaca', '', { roughness: 0.4, transparent: true, opacity: 0.88 }),
+
+    ref_p4: P('Jack P4 de 12 V', 'Comprada', '#2A2B2D', 10,
+      'Entrada de energia, rosqueado na parede de trás.', 'Porca do próprio jack', 'Furo de 8 mm'),
+    ref_xl4015: P('XL4015 (12 V → 4 V)', 'Comprada', '#1E5AA8', -16,
+      'Pendurado embaixo da bandeja, no vento da ventoinha, com os componentes para cima.',
+      '2 espaçadores de nylon M3 × 18, com M3 escareado por cima', 'Furos do seu módulo'),
+    ref_ina226: P('INA226 (medidor)', 'Comprada', '#6A3FA0', -16,
+      'Mede corrente e tensão dos 4 V. Fica embaixo da bandeja; solde os fios direto, sem barra de pinos.',
+      '2 espaçadores de nylon M3 × 10', 'Furos do seu módulo'),
+    ref_pcm: P('Plaquinha da bateria', 'Do celular', '#2E7D32', 10,
+      'A proteção original, tirada da bateria velha. Recebe os 4 V em B+ e B− e liga no SOC7000 pelo flex dela.',
+      'Bolsa com travinha', 'Desenhada com 34 × 6 mm'),
+    ref_capacitores: P('Capacitores 3 × 470 µF', 'Comprada', '#5C2D3A', 10,
+      'Seguram os picos de corrente, ao lado da plaquinha da bateria.', 'Berços na bandeja'),
+    ref_buck: P('Step-down 5 V (MP1584)', 'Comprada', '#1E5AA8', 10,
+      'Faz 12 V → 5 V para o RP2040-Zero, que fica sempre ligado.', 'Bolsa com travinha'),
+
+    ref_pico: P('RP2040-Zero', 'Comprada', '#222427', 10,
+      'Sempre ligado: lê botões, consumo e temperatura, controla a ventoinha e aperta as teclas. O USB-C aponta para a direita, para atualizar o firmware sem desmontar.',
+      'Bolsa com travinha'),
+    ref_mosfets: P('Plaquinha dos MOSFETs', 'Comprada', '#B08A55', 10,
+      'AO3400 da ventoinha e 3 × 2N7002 que puxam as molas para o GND. Feita num pedaço de placa perfurada de 20 × 15 mm.',
+      'Bolsa com travinha'),
+    ref_botoes: P('Botões', 'Comprada', '#B08A55', 10,
+      'Plaquinha perfurada com 3 tácteis 6 × 6 (power, vol + e vol −) atrás da parede da frente.',
+      'Desliza nos trilhos da bandeja'),
+    ref_botoes_hastes: P('Botões', 'Comprada', '#151515', 10, '', '', '', {}),
+    ref_antena: P('Antena FPC (opcional)', 'Comprada', '#D8A747', 10,
+      'Colada no suporte da esquerda, se o Wi-Fi ficar fraco dentro do case.', 'Fita dupla face'),
+
+    ref_paraf_bandeja: P('Parafusos da bandeja', 'Fixação', '#70777E', 58, '4 × M3 × 10 nos topos das colunas.', '—', '', METAL),
+    ref_paraf_ponte: P('Parafusos da ponte', 'Fixação', '#70777E', 30, '2 × M3 × 30. Apertar até a mola encostar, sem esmagar.', '—', '', METAL),
+    ref_molas: P('Molas da ponte', 'Fixação', '#D3D7DB', 17, 'Molas de compressão de 6 mm por fora, para M3.', '—', '', METAL),
+    ref_porcas_ponte: P('Porcas da ponte', 'Fixação', '#9AA1A7', -20, 'Porcas M3 presas no sextavado da ponte.', '—', '', METAL),
+    ref_paraf_ventoinha: P('Parafusos da ventoinha', 'Fixação', '#70777E', -92, '4 × M4 × 20, vindo por baixo dos pés.', '—', '', METAL),
+    ref_porcas_ventoinha: P('Porcas da ventoinha', 'Fixação', '#9AA1A7', -27, 'Porcas M4 dentro da aba da ventoinha.', '—', '', METAL),
+    ref_paraf_celular: P('Parafusos da placa do celular', 'Fixação', '#70777E', 36, '3 × M2 × 5 e 1 × M3 × 6.', '—', '', METAL),
+    ref_espacadores: P('Espaçadores de nylon', 'Fixação', '#ECEAE3', -8, 'M3 fêmea-fêmea: 2 de 18 mm e 2 de 10 mm.', '—'),
+    ref_paraf_mod_cima: P('Parafusos dos módulos', 'Fixação', '#70777E', 14, 'M3 × 6 escareados, rentes à bandeja.', '—', '', METAL),
+    ref_paraf_mod_baixo: P('Parafusos dos módulos', 'Fixação', '#70777E', -24, 'M3 × 5 por baixo do XL4015 e do INA226.', '—', '', METAL),
+  };
+  const ALIAS = { ref_botoes_hastes: 'ref_botoes' };
+  const GROUPS = [
+    { id: 'imp', nome: 'Peças impressas', parts: ['bandeja', 'base', 'ponte', 'pes'] },
+    { id: 'cel', nome: 'Celular', parts: ['ref_celular', 'ref_cel_soc', 'ref_cel_blindagem', 'ref_cel_conectores', 'ref_subplaca', 'ref_sub_conectores', 'ref_flex'] },
+    { id: 'ene', nome: 'Energia', parts: ['ref_p4', 'ref_xl4015', 'ref_ina226', 'ref_pcm', 'ref_capacitores', 'ref_buck'] },
+    { id: 'ctl', nome: 'Controle', parts: ['ref_pico', 'ref_mosfets', 'ref_botoes', 'ref_botoes_hastes', 'ref_antena'] },
+    { id: 'fri', nome: 'Refrigeração', parts: ['ref_ventoinha', 'ref_dissipador', 'ref_pinos'] },
+    { id: 'fix', nome: 'Parafusos e afins', parts: ['ref_paraf_bandeja', 'ref_paraf_ponte', 'ref_molas', 'ref_porcas_ponte', 'ref_paraf_ventoinha', 'ref_porcas_ventoinha', 'ref_paraf_celular', 'ref_espacadores', 'ref_paraf_mod_cima', 'ref_paraf_mod_baixo'], fechado: true },
+  ];
+
+  // ---------------------------------------------------------------- cena
+  const $ = (id) => document.getElementById(id);
+  const stage = $('stage'), canvas = $('c');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.localClippingEnabled = true;
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(32, 1, 1, 4000);
+  const controls = new THREE.OrbitControls(camera, canvas);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.09;
+  controls.minDistance = 60;
+  controls.maxDistance = 900;
+  controls.autoRotateSpeed = 1.2;
+
+  scene.add(new THREE.HemisphereLight(0xffffff, 0x6d7780, 0.75));
+  const sun = new THREE.DirectionalLight(0xffffff, 0.85);
+  sun.position.set(140, 260, 180);
+  sun.castShadow = true;
+  sun.shadow.mapSize.set(2048, 2048);
+  Object.assign(sun.shadow.camera, { left: -170, right: 170, top: 170, bottom: -170, near: 10, far: 900 });
+  sun.shadow.bias = -0.0004;
+  scene.add(sun);
+  const fill = new THREE.DirectionalLight(0xffffff, 0.3);
+  fill.position.set(-200, 90, -120);
+  scene.add(fill);
+
+  const chao = new THREE.Group();
+  const sombra = new THREE.Mesh(new THREE.PlaneGeometry(800, 800), new THREE.ShadowMaterial({ opacity: 0.18 }));
+  sombra.rotation.x = -Math.PI / 2;
+  sombra.receiveShadow = true;
+  chao.add(sombra);
+  scene.add(chao);
+  let grade = null;
+  function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+  function montarGrade() {
+    if (grade) { chao.remove(grade); grade.geometry.dispose(); grade.material.dispose(); }
+    grade = new THREE.GridHelper(400, 40, new THREE.Color(css('--grid-a')), new THREE.Color(css('--grid-b')));
+    grade.material.transparent = true;
+    grade.material.opacity = 0.55;
+    grade.position.y = 0.05;
+    chao.add(grade);
+  }
+  montarGrade();
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', montarGrade);
+  new MutationObserver(montarGrade).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+  const corte = new THREE.Plane(new THREE.Vector3(-1, 0, 0), -17);
+  const meshes = {};
+  const state = { e: 0.6, alvoE: 0.6, sel: 'bandeja', corte: false };
+
+  // ---------------------------------------------------------------- vistas
+  const ALVO = new THREE.Vector3(0, 30, 0);
+  const VISTAS = {
+    iso: [205, 165, 230], frente: [0, 55, 330], lado: [330, 55, 0], cima: [0.01, 360, 0.01],
+  };
+  let voo = null;
+  function irPara(nome, instant) {
+    const v = VISTAS[nome];
+    const f = Math.max(1, 1.2 / camera.aspect);   // tela estreita: afasta a câmera
+    const fim = new THREE.Vector3(v[0] * f, ALVO.y + (v[1] - ALVO.y) * f, v[2] * f);
+    document.querySelectorAll('[data-view]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.view === nome)));
+    if (instant || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      camera.position.copy(fim); controls.target.copy(ALVO); return;
+    }
+    voo = { t0: performance.now(), de: camera.position.clone(), para: fim, alvoDe: controls.target.clone() };
+  }
+  function tamanho() {
+    const w = stage.clientWidth, h = stage.clientHeight;
+    renderer.setSize(w, h, false);
+    camera.aspect = w / Math.max(h, 1);
+    camera.updateProjectionMatrix();
+  }
+  new ResizeObserver(tamanho).observe(stage);
+  tamanho();
+  irPara('iso', true);
+  document.querySelectorAll('[data-view]').forEach((b) => b.addEventListener('click', () => irPara(b.dataset.view)));
+  $('girar').addEventListener('click', (ev) => {
+    controls.autoRotate = !controls.autoRotate;
+    ev.currentTarget.setAttribute('aria-pressed', String(controls.autoRotate));
+  });
+
+  // ---------------------------------------------------------------- explodir e cortar
+  const exIn = $('explode'), exOut = $('explode-out');
+  function setE(v) { state.alvoE = v; exIn.value = Math.round(v * 100); exOut.textContent = Math.round(v * 100) + '%'; }
+  exIn.addEventListener('input', () => { state.alvoE = exIn.value / 100; state.e = state.alvoE; exOut.textContent = exIn.value + '%'; });
+  $('montado').addEventListener('click', () => setE(0));
+  $('explodido').addEventListener('click', () => setE(1));
+
+  const cIn = $('corte'), cOut = $('corte-out');
+  function rotCorte() {
+    const x = +cIn.value;
+    corte.constant = x;
+    cOut.textContent = Math.abs(x + 17) < 0.6 ? 'no SoC' : (x >= 0 ? '+' : '−') + Math.abs(x).toFixed(1).replace('.', ',') + ' mm';
+  }
+  cIn.addEventListener('input', rotCorte);
+  $('corte-on').addEventListener('change', (ev) => {
+    state.corte = ev.target.checked;
+    $('corte-ctl').hidden = !state.corte;
+    Object.values(meshes).forEach((m) => { m.material.clippingPlanes = state.corte ? [corte] : []; m.material.needsUpdate = true; });
+  });
+  rotCorte();
+
+  // ---------------------------------------------------------------- painel
+  const grupos = $('grupos');
+  const visivel = {};
+  GROUPS.forEach((g) => {
+    visivel[g.id] = true;
+    const wrap = document.createElement('div');
+    wrap.className = 'group';
+    const head = document.createElement('div');
+    head.className = 'group-head';
+    const lbl = document.createElement('label');
+    lbl.className = 'check';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.checked = true; cb.id = 'g-' + g.id;
+    lbl.append(cb, document.createTextNode(' ' + g.nome));
+    const nomes = g.parts.filter((k) => !ALIAS[k]);
+    const cnt = document.createElement('span');
+    cnt.className = 'count'; cnt.textContent = nomes.length;
+    head.append(lbl, cnt);
+    wrap.append(head);
+    const lista = document.createElement('div');
+    lista.className = 'group';
+    nomes.forEach((k) => {
+      const m = META[k];
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'row'; b.dataset.part = k;
+      const sw = document.createElement('span'); sw.className = 'sw'; sw.style.background = m.cor;
+      const t = document.createElement('span'); t.textContent = m.nome;
+      b.append(sw, t);
+      if (m.medir) { const s = document.createElement('span'); s.className = 'm'; s.textContent = 'medir'; b.append(s); }
+      b.addEventListener('click', () => selecionar(k));
+      lista.append(b);
+    });
+    if (g.fechado) {
+      const d = document.createElement('details');
+      const s = document.createElement('summary'); s.textContent = 'Ver cada um';
+      d.append(s, lista); wrap.append(d);
+    } else wrap.append(lista);
+    cb.addEventListener('change', () => {
+      visivel[g.id] = cb.checked;
+      g.parts.forEach((k) => { if (meshes[k]) meshes[k].visible = cb.checked; });
+      lista.querySelectorAll('.row').forEach((r) => r.classList.toggle('off', !cb.checked));
+    });
+    grupos.append(wrap);
+  });
+
+  function selecionar(k) {
+    k = ALIAS[k] || k;
+    state.sel = k;
+    const m = META[k];
+    $('card-nome').textContent = m.nome;
+    const chips = $('card-chips');
+    chips.replaceChildren();
+    const c1 = document.createElement('span');
+    c1.className = 'chip' + (m.tipo === 'Impressa' ? ' impressa' : '');
+    c1.textContent = m.tipo;
+    chips.append(c1);
+    if (m.medir) { const c2 = document.createElement('span'); c2.className = 'chip medir'; c2.textContent = 'medir'; chips.append(c2); }
+    $('card-desc').textContent = m.desc;
+    $('card-fixa').textContent = m.fixa || '—';
+    $('card-medir').textContent = m.medir;
+    $('card-medir').hidden = $('card-medir-k').hidden = !m.medir;
+    document.querySelectorAll('.row').forEach((r) => r.setAttribute('aria-current', String(r.dataset.part === k)));
+    Object.entries(meshes).forEach(([nome, mesh]) => {
+      const on = (ALIAS[nome] || nome) === k;
+      mesh.material.emissive.set(on ? css('--accent') : '#000000');
+      mesh.material.emissiveIntensity = on ? 0.22 : 0;
+    });
+  }
+
+  // ---------------------------------------------------------------- carregar
+  function falhou() {
+    $('loading').innerHTML = '<span class="err">Não deu para carregar o modelo 3D. Recarregue a página.</span>';
+  }
+  function montar(gltf) {
+    gltf.scene.traverse((o) => {
+      if (!o.isMesh) return;
+      const k = META[o.name] ? o.name : (o.parent && META[o.parent.name] ? o.parent.name : null);
+      if (!k) return;
+      const m = META[k];
+      o.material = new THREE.MeshStandardMaterial(Object.assign({
+        color: new THREE.Color(m.cor), roughness: 0.62, metalness: 0.02, flatShading: true, side: THREE.DoubleSide,
+      }, m.mat));
+      o.castShadow = true; o.receiveShadow = true;
+      o.userData.k = k;
+      meshes[k] = o;
+    });
+    scene.add(gltf.scene);
+    $('loading').hidden = true;
+    selecionar(state.sel);
+  }
+  fetch('uno-bloco-modelo.json')
+    .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then((d) => {
+      const bin = atob(d.glb), buf = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+      new THREE.GLTFLoader().parse(buf.buffer, '', montar, falhou);
+    })
+    .catch(falhou);
+
+  // ---------------------------------------------------------------- clique e etiqueta
+  const ray = new THREE.Raycaster();
+  const ptr = new THREE.Vector2();
+  const tag = $('tag');
+  function pegar(ev) {
+    const r = canvas.getBoundingClientRect();
+    ptr.set(((ev.clientX - r.left) / r.width) * 2 - 1, -((ev.clientY - r.top) / r.height) * 2 + 1);
+    ray.setFromCamera(ptr, camera);
+    const vis = Object.values(meshes).filter((m) => m.visible);
+    const hits = ray.intersectObjects(vis, false).filter((h) => !state.corte || corte.distanceToPoint(h.point) >= 0);
+    return hits.length ? hits[0].object.userData.k : null;
+  }
+  let down = null;
+  canvas.addEventListener('pointerdown', (ev) => { down = [ev.clientX, ev.clientY]; });
+  canvas.addEventListener('pointerup', (ev) => {
+    if (!down) return;
+    const moved = Math.hypot(ev.clientX - down[0], ev.clientY - down[1]);
+    down = null;
+    if (moved < 5) { const k = pegar(ev); if (k) selecionar(k); }
+  });
+  let pend = null;
+  canvas.addEventListener('pointermove', (ev) => {
+    if (ev.pointerType !== 'mouse') return;
+    pend = ev;
+  });
+  canvas.addEventListener('pointerleave', () => { tag.hidden = true; pend = null; });
+
+  // ---------------------------------------------------------------- laço
+
+  const ease = (t) => 1 - Math.pow(1 - t, 3);
+  function quadro(now) {
+    if (voo) {
+      const t = Math.min(1, (now - voo.t0) / 650), k = ease(t);
+      camera.position.lerpVectors(voo.de, voo.para, k);
+      controls.target.lerpVectors(voo.alvoDe, ALVO, k);
+      if (t >= 1) voo = null;
+    }
+    if (Math.abs(state.alvoE - state.e) > 0.001) state.e += (state.alvoE - state.e) * 0.14;
+    else state.e = state.alvoE;
+    for (const [k, mesh] of Object.entries(meshes)) mesh.position.y = META[k].ex * state.e;
+    chao.position.y = -95 * state.e;
+    if (pend) {
+      const k = pegar(pend);
+      if (k) {
+        const r = stage.getBoundingClientRect();
+        tag.textContent = META[k].nome;
+        tag.style.left = (pend.clientX - r.left) + 'px';
+        tag.style.top = (pend.clientY - r.top) + 'px';
+        tag.hidden = false;
+      } else tag.hidden = true;
+      pend = null;
+    }
+    controls.update();
+    renderer.render(scene, camera);
+    requestAnimationFrame(quadro);
+  }
+  requestAnimationFrame(quadro);
+})();
+</script>
+
+</body></html>

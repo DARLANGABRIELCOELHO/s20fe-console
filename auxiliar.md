@@ -31,6 +31,7 @@ Toda a pesquisa (detalhes e fontes) fica em [pesquisas/](pesquisas/README.md).
 - 2026-10-22: o ETA Prime fez um mini PC com um S20 FE de tela quebrada (NetherSX2 a 2x com quedas, cooler evita throttling).
 - 2026-10-22: com o Chrome do usuário, li Reddit, XDA e Clube do Hardware. O `magisk-autoboot` **já funcionou num S20 FE G780G/DS** (XDA) e num S10e com LineageOS 20.
 - 2026-10-22: sem bateria, os fóruns usam a placa de proteção (BMS) original + ~4 V regulados; cuidado com a % caindo a 0.
+- 2026-10-23: inventário das peças (foto) registrado em `hardware/README.md`. Os dissipadores podem ser de alumínio, não cobre; a bateria está solta e enrugada; o flex dos botões não aparece (ficou no chassi).
 
 ## Próximos passos
 
@@ -47,6 +48,10 @@ Toda a pesquisa (detalhes e fontes) fica em [pesquisas/](pesquisas/README.md).
 4. **Modo desktop:** testar "Forçar modo desktop" no LineageOS 23.2.
 5. **4PDA:** página 1 do guia lida (arquivo salvo em `pesquisas/`); faltam as outras 34 páginas e o tópico 499874, se valer a pena.
 6. **ETA Prime:** acompanhar o vídeo da montagem completa do S20 FE, quando sair (case, cooler, alimentação).
+7. **Bateria:** inspecionar antes de religar (inchaço, vincos, espessura até 6 mm); na dúvida, bateria nova.
+8. **Botões:** confirmar se o flex do power/volume ainda existe; senão, achar as 5 molas no esquema da Samsung e fazer a plaquinha de 3 botões.
+9. **Dissipadores:** pesar (cobre × alumínio) e decidir GIGABYTE no lado da tela + pequeno atrás.
+10. **Comprar o que falta** (lista em `hardware/README.md`, inventário de 2026-10-23).
 
 ## Integrações possíveis
 
